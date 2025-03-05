@@ -7,6 +7,9 @@ is pickle file of a pandas dataframe with the observations (with filenames to th
 # SETUP META PROCESSING
 ###################################################
 import pandas as pd
+import numpy as np
+from sklearn.model_selection import StratifiedShuffleSplit
+
 import pickle
 
 import os
@@ -243,36 +246,96 @@ observations["T1_and_T2"] = (observations["T1W"] != "---") & (observations["T2W"
 observations["all_three"] = (observations["T1W"] != "---") & (observations["T1W-GD"] != "---") & (observations["T2W"] != "---")
 
 
-
 # %%
-# PRODUCE SOME INFORMATION
-print(f"Total number of rows (observations): {observations.shape[0]}")
-print(f"Total number of unique (patient, session): {observations.drop_duplicates(subset=["subjetID", "session_name"]).shape[0]}")
-print(f"Total number of unique patients: {observations.drop_duplicates(subset=["subjetID"]).shape[0]}")
-print("")
+# ASSIGN LABELS
+observations["label"] = [None for i in range(observations.shape[0])]
+for i in range(observations.shape[0]):
+    diagnosis = observations.loc[i, "diagnosis"]
 
-print(f"Number of T1W volumes: {observations[observations["T1W"] != "---"].shape[0]}")
-print(f"Number of T1W-GD volumes: {observations[observations["T1W-GD"] != "---"].shape[0]}")
-print(f"Number of T2W volumes: {observations[observations["T2W"] != "---"].shape[0]}")
-print("")
+    if diagnosis in ['Low-Grade Glioma', 'Ganglioglioma']: label = 0
+    elif diagnosis in ['Ependymoma']: label = 1
+    elif diagnosis in ['Medulloblastoma', 'ATRT']: label = 2
+    elif diagnosis in ['High-Grade Glioma']: label = 3
+    else: label = "remove"
 
-print(f"Number of patients with T1W, T1W-GD and T2W: {observations[(observations["T1W"] != "---") & (observations["T1W-GD"] != "---") & (observations["T2W"] != "---")].shape}")
-print(f"Number of patients with T1W and T1W-GD: {observations[(observations["T1W"] != "---") & (observations["T1W-GD"] != "---")].shape[0]}")
-print(f"Number of patients with T1W and T2W: {observations[(observations["T1W"] != "---") & (observations["T2W"] != "---")].shape[0]}")
-print(f"Number of patients with T1W-GD and T2W: {observations[(observations["T1W-GD"] != "---") & (observations["T2W"] != "---")].shape[0]}")
-print("")
+    observations.loc[i, "label"] = label
 
-
-print("\nNumber of observations with 2, or 3 out of (T1, T1GD and T2) for each diagnose:\n")
-print(observations.groupby("diagnosis")[["T1_and_T1GD", "T1GD_and_T2", "T1_and_T2", "all_three"]].sum().reset_index())
-print("\n")
+# Filter out unused diagnoses
+observations = observations[observations["label"] != "remove"]
 
 
 
 # %%
-# SAVE FINAL OBSERVATION DATA
+# SAVE OBSERVATION DATA (with single files)
+# We do this in order to be able to test out training on only one sequence type.
 ###################################################
-with open("/local/data1/simjo484/mt_data/all_data/MRI/simon/final_observations.pkl", "wb") as f:
+with open("/local/data1/simjo484/mt_data/all_data/MRI/simon/final_observations_singles.pkl", "wb") as f:
     pickle.dump(observations, f)
-print("Saved observation data to final_observations.pkl (supposedly)")
+print("Saved observation data (including single files) to final_observations.pkl (supposedly)")
+
+
+# %%
+# SPLIT OBSERVATIONS INTO TRAIN AND TEST DATA
+# Make a list of all patient ids
+patients = observations.drop_duplicates(subset=["subjetID"])["subjetID"].tolist()
+
+# Create column that indicates which files are available for each patient
+observations["file_pattern"] = (
+    (~observations["T1W"].isin(["---"])).astype(int).astype(str) +
+    (~observations["T1W-GD"].isin(["---"])).astype(int).astype(str) +
+    (~observations["T2W"].isin(["---"])).astype(int).astype(str)
+)
+
+
+# Filter out observations that only feature one file
+observations = observations[~observations["file_pattern"].isin(["100", "010", "001"])]
+
+# Attach diagnosis to the stratification key
+observations["stratify_key"] = observations["diagnosis"] + "_" + observations["file_pattern"]
+
+# Filter out "Ependymoma_110" and "Low-Grade Glioma_110", because they only feature one observation each
+observations = observations[~observations["stratify_key"].isin(["Ependymoma_110", "Low-Grade Glioma_110"])]
+
+# Get unique patients & assign them a stratification label
+patients = observations.groupby("subjetID")["stratify_key"].agg(lambda x: x.value_counts().idxmax()).reset_index()
+
+# Create a splitter for the data, train proportion 70%
+splitter = StratifiedShuffleSplit(n_splits=1, train_size=0.7, random_state=42)
+
+# Show the number of observations per stratification key
+unique(patients["stratify_key"])
+
+# Perform split
+for train_idx, test_idx in splitter.split(patients, patients["stratify_key"]):
+    train_patients = patients.iloc[train_idx]["subjetID"]
+    test_patients = patients.iloc[test_idx]["subjetID"]
+
+# Split DataFrame
+train_df = observations[observations["subjetID"].isin(train_patients)]
+test_df = observations[observations["subjetID"].isin(test_patients)]
+
+
+
+# %%
+# PRODUCE TRAIN OBSERVATION SUMMARY
+observation_summary(train_df, title="Train data")
+
+# Save train df
+with open("/local/data1/simjo484/mt_data/all_data/MRI/simon/train_df.pkl", "wb") as f:
+    pickle.dump(train_df, f)
+print("Saved train data (supposedly)")
+
+
+
+# %%
+# PRODUCE TEST OBSERVATION SUMMARY
+observation_summary(test_df, title="Test data")
+
+# Save test df
+with open("/local/data1/simjo484/mt_data/all_data/MRI/simon/test_df.pkl", "wb") as f:
+    pickle.dump(test_df, f)
+print("Saved test data (supposedly)")
+
+
+
 # %%
