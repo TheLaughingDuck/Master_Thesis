@@ -252,10 +252,9 @@ observations["label"] = [None for i in range(observations.shape[0])]
 for i in range(observations.shape[0]):
     diagnosis = observations.loc[i, "diagnosis"]
 
-    if diagnosis in ['Low-Grade Glioma', 'Ganglioglioma']: label = 0
+    if diagnosis in ['Low-Grade Glioma', 'High-Grade Glioma']: label = 0
     elif diagnosis in ['Ependymoma']: label = 1
     elif diagnosis in ['Medulloblastoma', 'ATRT']: label = 2
-    elif diagnosis in ['High-Grade Glioma']: label = 3
     else: label = "remove"
 
     observations.loc[i, "label"] = label
