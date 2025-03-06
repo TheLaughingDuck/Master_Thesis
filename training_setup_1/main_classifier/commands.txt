@@ -1,0 +1,19 @@
+
+
+# Run training on main_classifier.py
+
+python /local/data2/simjo484/Classifier_training/main_classifier.py \
+--logdir=$(date "+%Y-%m-%d-%H:%M:%S") \
+--max_epochs=100 \
+--n_batches=4 \
+--workers=10 \
+--optim_lr=1e-4 \
+--val_every=5 \
+--save_checkpoint \
+--debug_mode=False
+
+
+
+--roi_x=128 \
+--roi_y=128 \
+--roi_z=128 \
