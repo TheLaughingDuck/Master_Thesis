@@ -1,0 +1,11 @@
+# Run training with main_classifier.py
+
+python /home/simjo484/master_thesis/Master_Thesis/classifier_training/main_classifier.py \
+--logdir=$(date "+%Y-%m-%d-%H:%M:%S") \
+--max_epochs=300 \
+--batch_size=3 \
+--workers=18 \
+--optim_lr=1e-6 \
+--val_every=5 \
+--save_checkpoint \
+--debug_mode=False
