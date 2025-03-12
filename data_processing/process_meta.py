@@ -13,22 +13,16 @@ from sklearn.model_selection import StratifiedShuffleSplit
 import pickle
 
 import os
+os.chdir("/home/simjo484/master_thesis/Master_Thesis")
 from utils import *
 
 # Load raw excel data
 data_raw = pd.read_excel("/local/data1/simjo484/mt_data/all_data/MRI/MRI_summary_extended_simon.xlsx")
 
-
-
-# %%
-# META PROCESSING SETTINGS
-
 # Sometimes there are multiple files for the same patient, same session, and same sequence type (like T2W for example).
 # If True, drop all but one
 drop_duplicates = True
 
-
-# %%
 # PROCESS META DATA
 ###################################################
 # Filter on pre_op
@@ -122,8 +116,6 @@ meta_seq_dummies.loc[:, "found_filename"] = pd.Series([False for i in range(meta
 print(f"Meta data shape: {meta_seq_dummies.shape}")
 
 
-
-# %%
 # MATCH FILENAMES
 # Dictionary with the number of files that were, and were *not* matched/found among the files
 matches = {seq: 0 for seq in seq_group}
@@ -196,7 +188,6 @@ print("\nTotal: "+str(sum(non_matches.values()) + sum(matches.values())))
 # Filter on files that were found
 meta_seq_dummies = meta_seq_dummies[meta_seq_dummies["file_found"] == True]
 
-# %%
 # SAVE META DATA
 ###################################################
 with open("/local/data1/simjo484/mt_data/all_data/MRI/simon/meta.pkl", "wb") as f:
@@ -228,8 +219,6 @@ else:
     print(f"Observations shape after pivoting (and *not* dropping duplicates): {observations.shape}")
 
 
-
-# %%
 # SAVE OBSERVATION DATA
 ###################################################
 with open("/local/data1/simjo484/mt_data/all_data/MRI/simon/observations.pkl", "wb") as f:
@@ -254,7 +243,7 @@ for i in range(observations.shape[0]):
 
     if diagnosis in ['Low-Grade Glioma', 'High-Grade Glioma']: label = 0
     elif diagnosis in ['Ependymoma']: label = 1
-    elif diagnosis in ['Medulloblastoma', 'ATRT']: label = 2
+    elif diagnosis in ['Medulloblastoma']: label = 2
     else: label = "remove"
 
     observations.loc[i, "label"] = label
@@ -263,8 +252,6 @@ for i in range(observations.shape[0]):
 observations = observations[observations["label"] != "remove"]
 
 
-
-# %%
 # SAVE OBSERVATION DATA (with single files)
 # We do this in order to be able to test out training on only one sequence type.
 ###################################################
@@ -298,20 +285,32 @@ observations = observations[~observations["stratify_key"].isin(["Ependymoma_110"
 # Get unique patients & assign them a stratification label
 patients = observations.groupby("subjetID")["stratify_key"].agg(lambda x: x.value_counts().idxmax()).reset_index()
 
-# Create a splitter for the data, train proportion 70%
-splitter = StratifiedShuffleSplit(n_splits=1, train_size=0.7, random_state=42)
-
 # Show the number of observations per stratification key
-unique(patients["stratify_key"])
+#print(unique(patients["stratify_key"]))
 
-# Perform split
+#print(patients.head())
+
+
+# Perform train/test split
+# Create a splitter for the data, train proportion 80%
+splitter = StratifiedShuffleSplit(n_splits=1, train_size=0.8, random_state=42)
 for train_idx, test_idx in splitter.split(patients, patients["stratify_key"]):
-    train_patients = patients.iloc[train_idx]["subjetID"]
+    non_test_patients = patients.iloc[train_idx]["subjetID"]
     test_patients = patients.iloc[test_idx]["subjetID"]
+
+
+# Perform train/val split
+splitter = StratifiedShuffleSplit(n_splits=1, train_size=0.6, random_state=42)
+for train_idx, valid_idx in splitter.split(non_test_patients, patients[patients["subjetID"].isin(non_test_patients)]["stratify_key"]):
+    train_patients = patients.iloc[train_idx]["subjetID"]
+    valid_patients = patients.iloc[valid_idx]["subjetID"]
 
 # Split DataFrame
 train_df = observations[observations["subjetID"].isin(train_patients)]
+valid_df = observations[observations["subjetID"].isin(valid_patients)]
 test_df = observations[observations["subjetID"].isin(test_patients)]
+
+# Sanity checks: Verify that train and test patients don't overlap
 
 
 
@@ -323,6 +322,17 @@ observation_summary(train_df, title="Train data")
 with open("/local/data1/simjo484/mt_data/all_data/MRI/simon/train_df.pkl", "wb") as f:
     pickle.dump(train_df, f)
 print("Saved train data (supposedly)")
+
+
+
+# %%
+# PRODUCE VALIDATION OBSERVATION SUMMARY
+observation_summary(valid_df, title="Validation data")
+
+# Save validation df
+with open("/local/data1/simjo484/mt_data/all_data/MRI/simon/valid_df.pkl", "wb") as f:
+    pickle.dump(valid_df, f)
+print("Saved validation data (supposedly)")
 
 
 
