@@ -1,5 +1,10 @@
 '''
-Script that trains a classifier on some combination of T1, T2 and T1-GD sequences
+Script that trains a classifier on some combination of T1, T2 and T1-GD sequences.
+
+This script was adapted from scripts used to train the BrainSegFounder models.
+This script was copied and modified in March of 2025. See
+https://github.com/lab-smile/BrainSegFounder
+for the original source code, that falls under the LICENSE that is also available in this dir.
 '''
 
 import argparse
