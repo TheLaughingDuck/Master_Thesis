@@ -111,7 +111,7 @@ def show_image_v2(images=None, titles=None, maintitle=None, z=75, minimal=True):
 
         #print("Index+1 is "+str(index+1), " , r_ind: "+str(row_index), " , c_ind: "+str(col_index))
 
-        if images[row_index][col_index] == "none": # Hide empty figs
+        if type(images[row_index][col_index]) == str: #"none": # Hide empty figs
             axs.axis("off")
         else:
             axs.imshow(images[row_index][col_index][:, :, z], cmap="gray")
