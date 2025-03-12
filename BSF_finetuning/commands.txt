@@ -1,0 +1,42 @@
+Commands for training that can be run in the terminal
+
+
+######### Start fine-tuning BSF on T2 BraTS images #########
+# There are 20 cores, so we set the number of workers to 18, so that it does not freeze up, and may do other computations in the mean time.
+# This was based on https://github.com/lab-smile/BrainSegFounder/blob/main/downstream/BraTS/finetuning/launch.sh
+
+python /local/data2/simjo484/BrainSegFounder_custom_finetuning/downstream/BraTS/finetuning/main_FinetuningSwinUNETR_4Channels.py \
+--depths='2 2 2 2' \
+--num_heads='3 6 12 24' \
+--roi_x=128 \
+--roi_y=128 \
+--roi_z=128 \
+--noamp \
+--logdir=$(date "+%Y-%m-%d-%H:%M:%S") \
+--batch_size=2 \
+--in_channels=4 \
+--workers=18 \
+--optim_lr=1e-4 \
+--val_every=5 \
+--use_checkpoint \
+--save_checkpoint \
+--pretrained_model_name='model_bestValRMSE-fold4.pt' \
+--fold=4 \
+--max_epochs=120 \
+--json_list='/local/data2/simjo484/BrainSegFounder_custom_finetuning/downstream/BraTS/finetuning/jsons/brats21_folds_T2_modality.json' \
+--data_dir='/local/data2/simjo484/BRATScommon/BRATS21/' \
+--resume_ckpt \
+
+--checkpoint='/local/data2/simjo484/BrainSegFounder_custom_finetuning/downstream/BraTS/finetuning/runs/2025-03-04-12:24:35/events.out.tfevents.1741087481.kawasaki.ad.liu.se'
+
+
+
+
+# OBSERVATIONS
+The training *does* run for four channels (It successfully trained one epoch, and further), but when I tried to modify it to take only one channel, it breaks.
+So it seems that I need to do more modifications than I thought in order to change the architecture to a 1 channel
+model.
+
+When I set the batch size to 5 or larger, we suffer from not enough memory on the GPU. Seems to work for batch size 4.
+
+The BSF article suggested to train with T2 images through each of the four channels, and in this way achieve a single-channel model.
