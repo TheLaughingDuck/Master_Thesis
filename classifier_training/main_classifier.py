@@ -16,7 +16,7 @@ import torch.nn as nn
 import torch.nn.parallel
 import torch.utils.data.distributed
 from trainer import run_training
-from utils.data_utils import get_loader
+#from utils.data_utils import get_loader
 
 import os
 os.chdir("/home/simjo484/master_thesis/Master_Thesis")
@@ -35,15 +35,22 @@ parser.add_argument("--cl_device", default="cuda", type=str, help="Classifier de
 parser.add_argument("--max_epochs", default=300, type=int, help="max number of training epochs")
 parser.add_argument("--save_checkpoint", action="store_true", help="save checkpoint during training")
 parser.add_argument("--debug_mode", default="False", type=str, help="Set the pipeline into debug mode: only a few observations are used to achieve massive speedup.")
+parser.add_argument("--comment", default="", type=str, help="A short comment for the output file, to help distinguish previous runs. Example: \".../runs/2025-XX-XX-XX:XX:XX (Deeper classifier)\"")
 
 
 def main():
     args = parser.parse_args()
-    args.logdir = "/local/data2/simjo484/Training_outputs/classifier_training/t2/runs" + args.logdir
+    args.logdir = "/local/data2/simjo484/Training_outputs/classifier_training/t2/runs/" + args.logdir
     args.test_mode = False
     if args.debug_mode == "False": args.debug_mode = False
     elif args.debug_mode == "True": args.debug_mode = True
     else: raise ValueError("--debug_mode argument is either \"True\" or \"False\"")
+
+    # Mark debug runs so they are easy to find and delete
+    if args.debug_mode == True: args.logdir += " (debug mode)"
+
+    # Add an optional short comment to the logdir
+    args.logdir += " (" + args.comment + ")"
 
     np.set_printoptions(formatter={"float": "{: 0.3f}".format}, suppress=True) # What does this do?
 
@@ -70,7 +77,7 @@ def main():
         #use_checkpoint=True # "use gradient checkpointing to save memory"
     )
     feature_extractor.to(args.cl_device)
-    feature_extractor.load_state_dict(torch.load("/local/data2/simjo484/BrainSegFounder_custom_finetuning/downstream/BraTS/finetuning/runs/2025-03-05-08:07:48/model_final.pt",
+    feature_extractor.load_state_dict(torch.load("/local/data2/simjo484/Training_outputs/BSF_finetuning/runs/2025-03-05-08:07:48/model_final.pt",#"/local/data2/simjo484/BrainSegFounder_custom_finetuning/downstream/BraTS/finetuning/runs/2025-03-05-08:07:48/model_final.pt",
                                         map_location=args.pp_device)["state_dict"])
     feature_extractor.eval(); print("Set Feature Extractor to eval mode.")
     print(f"Feature Extractor using {args.cl_device} device.")
