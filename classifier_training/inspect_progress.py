@@ -7,7 +7,7 @@ import os
 
 def plot_train_val_from_eventfile(event_file=None, latest = True, print_values=False):
     if latest:
-        path = "/local/data2/simjo484/Training_outputs/classifier_training/t2/runs"
+        path = "/local/data2/simjo484/Training_outputs/classifier_training/t2/runs/"
         path += sorted(os.listdir(path))[-1] + "/" # Get latest run folder
         path += sorted(os.listdir(path))[0] # Get events file path
         print(path)
@@ -79,6 +79,6 @@ def plot_train_val_from_eventfile(event_file=None, latest = True, print_values=F
     # fig.show()
 
 
-plot_train_val_from_eventfile(print_values=True)
+plot_train_val_from_eventfile(print_values=False)
 
 # %%
