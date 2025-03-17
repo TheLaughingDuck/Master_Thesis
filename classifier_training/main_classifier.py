@@ -29,6 +29,11 @@ parser.add_argument("--workers", default=1, type=int, help="number of workers")
 parser.add_argument("--logdir", default=".", type=str, help="directory to save the tensorboard logs")
 parser.add_argument("--batch_size", default=1, type=int, help="Number of observations per batch")
 parser.add_argument("--optim_lr", default=1e-3, type=float, help="optimization learning rate")
+parser.add_argument("--lrschedule", default="warmup_cosine", type=str, help="type of learning rate scheduler")
+parser.add_argument("--reg_weight", default=1e-5, type=float, help="regularization weight")
+parser.add_argument("--warmup_epochs", default=50, type=int, help="number of warmup epochs")
+parser.add_argument("--optim_name", default="adamw", type=str, help="optimization algorithm")
+
 parser.add_argument("--val_every", default=100, type=int, help="validation frequency")
 parser.add_argument("--pp_device", default="cpu", type=str, help="Preprocessing device")
 parser.add_argument("--cl_device", default="cuda", type=str, help="Classifier device")
@@ -50,7 +55,7 @@ def main():
     if args.debug_mode == True: args.logdir += " (debug mode)"
 
     # Add an optional short comment to the logdir
-    args.logdir += " (" + args.comment + ")"
+    if args.comment != "": args.logdir += " (" + args.comment + ")"
 
     np.set_printoptions(formatter={"float": "{: 0.3f}".format}, suppress=True) # What does this do?
 
@@ -109,19 +114,33 @@ def main():
 
     
     # 
-    # if args.optim_name == "adam":
-    #     optimizer = torch.optim.Adam(model.parameters(), lr=args.optim_lr, weight_decay=args.reg_weight)
-    # elif args.optim_name == "adamw":
-    #     optimizer = torch.optim.AdamW(model.parameters(), lr=args.optim_lr, weight_decay=args.reg_weight)
-    # elif args.optim_name == "sgd":
-    #     optimizer = torch.optim.SGD(
-    #         model.parameters(), lr=args.optim_lr, momentum=args.momentum, nesterov=True, weight_decay=args.reg_weight
-    #     )
-    # else:
-    #     raise ValueError("Unsupported Optimization Procedure: " + str(args.optim_name))
+    if args.optim_name == "adam":
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.optim_lr, weight_decay=args.reg_weight)
+    elif args.optim_name == "adamw":
+        optimizer = torch.optim.AdamW(model.parameters(), lr=args.optim_lr, weight_decay=args.reg_weight)
+    elif args.optim_name == "sgd":
+        optimizer = torch.optim.SGD(
+            model.parameters(), lr=args.optim_lr, momentum=args.momentum, nesterov=True, weight_decay=args.reg_weight
+        )
+    else:
+        raise ValueError("Unsupported Optimization Procedure: " + str(args.optim_name))
     
-    loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=args.optim_lr)
+    loss_fn = nn.CrossEntropyLoss(reduction="mean") # This is apparently the NLLLoss! (Negative log likelihood. Range is [0 -> +inf)  )
+    #optimizer = torch.optim.SGD(model.parameters(), lr=args.optim_lr)
+
+
+
+    if args.lrschedule == "warmup_cosine":
+        scheduler = LinearWarmupCosineAnnealingLR(
+            optimizer, warmup_epochs=args.warmup_epochs, max_epochs=args.max_epochs
+        )
+    elif args.lrschedule == "cosine_anneal":
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.max_epochs)
+        if args.checkpoint is not None:
+            scheduler.step(epoch=start_epoch)
+    else:
+        scheduler = None
+    
 
     accuracy = run_training(
         model=model,
@@ -131,6 +150,7 @@ def main():
         loss_func=loss_fn,
         #acc_func=dice_acc,
         args=args,
+        scheduler=scheduler,
         start_epoch=start_epoch,
         feature_extractor=feature_extractor
     )

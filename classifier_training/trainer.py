@@ -25,35 +25,23 @@ from monai.data import decollate_batch
 
 def train_epoch(model, loader, optimizer, epoch, loss_func, args, feature_extractor=None):
     model.train()
-    # n_observations = len(loader.dataset)
+    start_time = time.time()
+    run_loss = 0 #AverageMeter()
     num_batches = len(loader)
     
-    run_loss = 0 #AverageMeter()
-    start_time = time.time()
-
     for batch_id, batch_data in enumerate(loader):
-        sectional_start_time = time.time()
         data, target = batch_data["images"].to(args.cl_device), batch_data["label"].to(args.cl_device)
-        #print("\tData loading time: {:.2f}s".format(time.time()-sectional_start_time))
 
         # Extract features
-        sectional_start_time = time.time()
-        data = feature_extractor(data) # Taking a lot of time
-        #print("\tFeature extraction time: {:.2f}s".format(time.time()-sectional_start_time))
+        data = feature_extractor(data) # Taking a lot of time (before sending the FE to cuda device)
         
-        sectional_start_time = time.time()
         pred = model(data)
         loss = loss_func(pred, target)
-        #print("\tClassifier forward pass (and loss calc) time: {:.2f}s".format(time.time()-sectional_start_time))
-        
 
         # Backpropagation
-        sectional_start_time = time.time()
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
-        #print("\tBackprop time: {:.2f}s".format(time.time()-sectional_start_time))
-        
 
         # Save loss
         # run_loss.update(loss.item(), n=args.batch_size)
@@ -66,7 +54,9 @@ def train_epoch(model, loader, optimizer, epoch, loss_func, args, feature_extrac
         )
         start_time = time.time()
     
-    avg_loss = run_loss / num_batches
+    #avg_loss = run_loss / num_batches
+    avg_loss = run_loss / (num_batches * args.batch_size)
+    #print(f"Optimizer learning rate: {optimizer.state_dict()["param_groups"][0]["lr"]}") #Check that learning rate changes. It does!
 
     return {"avg_loss": avg_loss} # avg_loss #run_loss.item()
 
@@ -127,11 +117,13 @@ def val_epoch(model, loader, epoch, loss_func, args, feature_extractor):
     return avg_loss, metrics
 
 
-def save_checkpoint(model, epoch, args, filename="model.pt", best_acc=0, optimizer=None):
+def save_checkpoint(model, epoch, args, filename="model.pt", best_acc=0, optimizer=None, scheduler=None):
     state_dict = model.state_dict()
     save_dict = {"epoch": epoch, "best_acc": best_acc, "state_dict": state_dict}
     if optimizer is not None:
         save_dict["optimizer"] = optimizer.state_dict()
+    if scheduler is not None:
+        save_dict["scheduler"] = scheduler.state_dict()
     filename = os.path.join(args.logdir, filename)
     torch.save(save_dict, filename)
     print("\nSaving checkpoint", filename)
@@ -145,10 +137,12 @@ def run_training(
     loss_func,
     #acc_func,
     args,
+    scheduler=None,
     start_epoch=0,
     feature_extractor=None
     ):
     
+    # Setup log writer
     writer = None
     if args.logdir is not None:
         writer = SummaryWriter(log_dir=args.logdir)
@@ -161,21 +155,25 @@ def run_training(
     for epoch in range(start_epoch, args.max_epochs):
         print("\n===", time.ctime(), "Epoch:", epoch, "===")
         epoch_time = time.time()
+
+        # Run one training epoch
         train_metrics = train_epoch(
             model, train_loader, optimizer, epoch=epoch, loss_func=loss_func, args=args, feature_extractor=feature_extractor
         )
         
+        # Print results of one training epoch
         print(
             "\nFinal training  {}/{}".format(epoch, args.max_epochs - 1),
             "avg loss: {:.4f}".format(train_metrics["avg_loss"]),
             "time {:.2f}s".format(time.time() - epoch_time),
         )
         
+        # Write results of one training epoch
         if writer is not None:
             writer.add_scalar("avg_train_loss", train_metrics["avg_loss"], epoch)
         b_new_best = False
 
-        # Time for a validation check?
+        # Possibly run a validation epoch
         if (epoch + 1) % args.val_every == 0:
             print('\n=== Validation ===')
             epoch_time = time.time()
@@ -212,13 +210,16 @@ def run_training(
                 b_new_best = True
                 if args.logdir is not None and args.save_checkpoint:
                     save_checkpoint(
-                        model, epoch, args, best_acc=val_metrics["acc"], optimizer=optimizer
+                        model, epoch, args, best_acc=val_metrics["acc"], optimizer=optimizer, scheduler=scheduler
                     )
             if args.logdir is not None and args.save_checkpoint:
                 save_checkpoint(model, epoch, args, best_acc=val_metrics["acc"], filename="model_final.pt")
                 if b_new_best:
-                    print("Copying to model.pt new best model!!!!")
+                    print("Copying to model.pt new best model!!!! \N{Sauropod} \N{T-Rex}")
                     shutil.copyfile(os.path.join(args.logdir, "model_final.pt"), os.path.join(args.logdir, "model.pt"))
+        
+        if scheduler is not None:
+            scheduler.step()
 
     print("Training Finished !, Best validation accuracy: ", val_acc_max)
 
