@@ -32,13 +32,15 @@ from monai.transforms import (
     Lambda
 )
 
+from sklearn.neighbors import KNeighborsClassifier
+
 class Classifier(nn.Module):
     def __init__(self):
         super().__init__()
         self.flatten = nn.Flatten()
         self.linear_relu_stack = nn.Sequential(
-            nn.Dropout(p=0.2),
-            nn.Linear(768*4**3, 100),
+            nn.Dropout(p=0.4),
+            nn.Linear(768*4**3, 20),
             nn.ReLU(),
 
             # nn.Dropout(p=0.5),
@@ -54,7 +56,7 @@ class Classifier(nn.Module):
             # nn.ReLU(),
 
             nn.Dropout(p=0.5),
-            nn.Linear(100, 3),
+            nn.Linear(20, 3),
 
             nn.Softmax(dim=0)
         )
@@ -63,6 +65,7 @@ class Classifier(nn.Module):
         x = self.flatten(x)
         logits = self.linear_relu_stack(x)
         return logits
+
 
 
 # Define Feature Extractinator
@@ -86,14 +89,16 @@ class EmbedSwinUNETR(SwinUNETR):
             self._check_input_size(x_in.shape[2:])
     
         hidden_states_out = self.swinViT(x_in, self.normalize)
+
+        return hidden_states_out[4]
         #enc0 = self.encoder1(x_in)
         #enc1 = self.encoder2(hidden_states_out[0])
         #enc2 = self.encoder3(hidden_states_out[1])
         #enc3 = self.encoder4(hidden_states_out[2])
-        dec4 = self.encoder10(hidden_states_out[4])
+        #dec4 = self.encoder10(hidden_states_out[4])
 
         # Just return this embedding
-        return(dec4)
+        #return(dec4)
         
         # dec3 = self.decoder5(dec4, hidden_states_out[3])
         # dec2 = self.decoder4(dec3, enc3)
