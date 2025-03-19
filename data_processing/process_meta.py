@@ -262,6 +262,7 @@ print("Saved observation data (including single files) to final_observations.pkl
 
 # %%
 # SPLIT OBSERVATIONS INTO TRAIN AND TEST DATA
+#################################################################################################
 # Make a list of all patient ids
 patients = observations.drop_duplicates(subset=["subjetID"])["subjetID"].tolist()
 
@@ -310,8 +311,31 @@ train_df = observations[observations["subjetID"].isin(train_patients)]
 valid_df = observations[observations["subjetID"].isin(valid_patients)]
 test_df = observations[observations["subjetID"].isin(test_patients)]
 
-# Sanity checks: Verify that train and test patients don't overlap
 
+#################################################################################################
+# Training set data leakage sanity check
+train_count, val_count, test_count = 0, 0, 0
+for i in train_df["subjetID"].tolist():
+    if i in train_df["subjetID"].tolist(): train_count += 1
+    if i in valid_df["subjetID"].tolist(): val_count += 1
+    if i in test_df["subjetID"].tolist(): test_count += 1
+print(f"Training leakage counts:\n\tTrain:{train_count}\n\tValidation:{val_count}\n\tTest:{test_count}")
+
+# Validation set data leakage sanity check
+train_count, val_count, test_count = 0, 0, 0
+for i in valid_df["subjetID"].tolist():
+    if i in train_df["subjetID"].tolist(): train_count += 1
+    if i in valid_df["subjetID"].tolist(): val_count += 1
+    if i in test_df["subjetID"].tolist(): test_count += 1
+print(f"Validation leakage counts:\n\tTrain:{train_count}\n\tValidation:{val_count}\n\tTest:{test_count}")
+
+# Test set data leakage sanity check
+train_count, val_count, test_count = 0, 0, 0
+for i in test_df["subjetID"].tolist():
+    if i in train_df["subjetID"].tolist(): train_count += 1
+    if i in valid_df["subjetID"].tolist(): val_count += 1
+    if i in test_df["subjetID"].tolist(): test_count += 1
+print(f"Test leakage counts:\n\tTrain:{train_count}\n\tValidation:{val_count}\n\tTest:{test_count}")
 
 
 # %%
