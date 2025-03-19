@@ -82,6 +82,7 @@ def val_epoch(model, loader, epoch, loss_func, args, feature_extractor):
 
             # Calculate predicitons and loss
             pred = model(data)
+
             val_loss = loss_func(pred, target).item() # Calculate loss
             run_loss += val_loss
 
@@ -99,7 +100,7 @@ def val_epoch(model, loader, epoch, loss_func, args, feature_extractor):
             start_time = time.time()
     
     # Calculate metrics
-    avg_loss = run_loss / num_batches
+    avg_loss = run_loss / (num_batches * args.batch_size)
     all_preds = torch.tensor(all_preds)
     all_targets = torch.tensor(all_targets)
     
@@ -148,6 +149,14 @@ def run_training(
         writer = SummaryWriter(log_dir=args.logdir)
         print("Writing Tensorboard logs to ", args.logdir)
 
+        # Print arguments to run dir (currently collides with inspect_progress.py)
+        with open(args.logdir + "/arguments.txt", "w") as f:
+            #args = parser.parse_args()
+            f.write("=== Arguments ===\n")
+            for arg in vars(args):
+                f.write("{}: {}\n".format(arg, getattr(args, arg)))
+            f.write("=================\n")
+
     # The best validation accuracy so far
     val_acc_max = 0
 
@@ -160,12 +169,17 @@ def run_training(
         train_metrics = train_epoch(
             model, train_loader, optimizer, epoch=epoch, loss_func=loss_func, args=args, feature_extractor=feature_extractor
         )
+
+        # Format the estimated end time
+        epoch_duration = time.time() - epoch_time
+        estimated_end_time = time.strftime("%Y-%m-%d-%H:%M:%S", time.localtime(time.time() + (args.max_epochs-epoch) * epoch_duration))
         
         # Print results of one training epoch
         print(
-            "\nFinal training  {}/{}".format(epoch, args.max_epochs - 1),
-            "avg loss: {:.4f}".format(train_metrics["avg_loss"]),
-            "time {:.2f}s".format(time.time() - epoch_time),
+            "\nFinal training results: epoch  {}/{},".format(epoch, args.max_epochs - 1),
+            "avg loss: {:.4f},".format(train_metrics["avg_loss"]),
+            "time: {:.2f}s".format(time.time() - epoch_time),
+            "\nEstimated completion on: {} (not taking validation epochs into account)".format(estimated_end_time)
         )
         
         # Write results of one training epoch
@@ -188,11 +202,11 @@ def run_training(
             )
 
             print(
-                "\nFinal validation stats {}/{}, time: {:.2f}s \n".format(epoch, args.max_epochs - 1, time.time() - epoch_time),
+                "\nFinal validation stats {}/{}, time: {:.2f}s \N{Dragon Face}\n".format(epoch, args.max_epochs - 1, time.time() - epoch_time),
                 "\tAccuracy (global, unweighted): {:>0.1f}".format(val_metrics["acc"]),
                 "\n\tPrecision (by class): {:>0.1f}, {:>0.1f}, {:>0.1f}".format(*val_metrics["prec"].tolist()),
                 "\n\tRecall (by class): {:>0.1f}, {:>0.1f}, {:>0.1f}".format(*val_metrics["rec"].tolist()),
-                "\n\tAvg val loss: {:>8f}".format(avg_loss)
+                "\n\tAvg val loss: {:>8f} \N{Whale}".format(avg_loss)
             )
 
             if writer is not None:
@@ -215,12 +229,13 @@ def run_training(
             if args.logdir is not None and args.save_checkpoint:
                 save_checkpoint(model, epoch, args, best_acc=val_metrics["acc"], filename="model_final.pt")
                 if b_new_best:
-                    print("Copying to model.pt new best model!!!! \N{Sauropod} \N{T-Rex}")
+                    print("Copying to model.pt new best model!!!! \N{Sauropod} \N{T-Rex} \N{Crocodile} \N{Spouting Whale} \N{Dragon}")
                     shutil.copyfile(os.path.join(args.logdir, "model_final.pt"), os.path.join(args.logdir, "model.pt"))
         
         if scheduler is not None:
             scheduler.step()
 
-    print("Training Finished !, Best validation accuracy: ", val_acc_max)
+    print("Training Finished !, Best validation accuracy: {:>0.1f}".format(val_acc_max.item()))
+    print("\N{Sauropod} \N{Sauropod}")
 
     return val_acc_max
