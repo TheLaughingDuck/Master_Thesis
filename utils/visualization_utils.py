@@ -217,5 +217,61 @@ def observation_summary(observations, title=""):
     print("")
 
     print("\nNumber of observations with 2, or 3 out of (T1, T1GD and T2) for each diagnose:\n")
-    print(observations.groupby("label")[["T1_and_T1GD", "T1GD_and_T2", "T1_and_T2", "all_three"]].sum().reset_index())
+    print(observations.groupby("class_label")[["T1_and_T1GD", "T1GD_and_T2", "T1_and_T2", "all_three"]].sum().reset_index())
     print("\n")
+
+#%%
+
+def get_conf_matrix(all_targets, all_preds, n_classes=3):
+    '''
+    Takes two integer lists of all target classes, and all predictions by some classifier.
+
+    Returns a confusion matrix, with true class on the columns, and predicted class on rows.
+    '''
+    matrix = [[0 for i in range(n_classes)] for i in range(n_classes)]
+
+    for i in range(n_classes):
+        for j in range(n_classes):
+            for pre, tar in zip(all_preds, all_targets):
+                if pre == i and tar == j:
+                    matrix[i][j] += 1
+    
+    return(matrix)
+
+
+
+# %%
+import re
+
+def create_conf_matrix_fig(train_mat, valid_mat, save_fig_as=None):
+    '''
+    Takes confusion matrices (on training and validation data),
+    and creates a figure with them. Saves as a png.
+    '''
+    fig, axs = plt.subplots(ncols=2)
+    fig.tight_layout(rect=(0,0,1,0.999))
+
+    axs[0].matshow(train_mat)
+    for (i, j), z in np.ndenumerate(train_mat):
+        axs[0].text(j, i, '{}'.format(z), ha='center', va='center')
+    axs[0].set_yticks(ticks=[0,1,2], labels=["Gli", "Epe", "Med"])
+    axs[0].set_xlabel("True value")
+    axs[0].set_ylabel("Prediction")
+    axs[0].set_title("Training data")
+
+    axs[1].matshow(valid_mat)
+    for (i, j), z in np.ndenumerate(valid_mat):
+        axs[0].text(j, i, '{}'.format(z), ha='center', va='center')
+    axs[1].set_yticks(ticks=[0,1,2], labels=["Gli", "Epe", "Med"])
+    #axs[1].set_xlabel("True value")
+    #axs[1].set_ylabel("Prediction")
+    axs[1].set_title("Validation data")
+
+    if save_fig_as != None:
+        start_date = re.search(r"\d{4}-\d{2}-\d{2}-\d{2}:\d{2}:\d{2}", save_fig_as).group(0)
+        fig.suptitle("Confusion matrices ("+start_date+")", fontsize=16)
+        fig.savefig(save_fig_as)
+    else:
+        fig.suptitle("Confusion matrices", fontsize=16)
+        fig.show()
+        
