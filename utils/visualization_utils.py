@@ -230,6 +230,8 @@ def get_conf_matrix(all_targets, all_preds, n_classes=3):
     '''
     matrix = [[0 for i in range(n_classes)] for i in range(n_classes)]
 
+    print(f"There are {len(all_preds)} predictions in all_preds.")
+
     for i in range(n_classes):
         for j in range(n_classes):
             for pre, tar in zip(all_preds, all_targets):
@@ -255,14 +257,16 @@ def create_conf_matrix_fig(train_mat, valid_mat, save_fig_as=None):
     for (i, j), z in np.ndenumerate(train_mat):
         axs[0].text(j, i, '{}'.format(z), ha='center', va='center')
     axs[0].set_yticks(ticks=[0,1,2], labels=["Gli", "Epe", "Med"])
+    axs[0].set_xticks(ticks=[0,1,2], labels=["Gli", "Epe", "Med"])
     axs[0].set_xlabel("True value")
     axs[0].set_ylabel("Prediction")
     axs[0].set_title("Training data")
 
     axs[1].matshow(valid_mat)
     for (i, j), z in np.ndenumerate(valid_mat):
-        axs[0].text(j, i, '{}'.format(z), ha='center', va='center')
+        axs[1].text(j, i, '{}'.format(z), ha='center', va='center')
     axs[1].set_yticks(ticks=[0,1,2], labels=["Gli", "Epe", "Med"])
+    axs[1].set_xticks(ticks=[0,1,2], labels=["Gli", "Epe", "Med"])
     #axs[1].set_xlabel("True value")
     #axs[1].set_ylabel("Prediction")
     axs[1].set_title("Validation data")
@@ -274,4 +278,28 @@ def create_conf_matrix_fig(train_mat, valid_mat, save_fig_as=None):
     else:
         fig.suptitle("Confusion matrices", fontsize=16)
         fig.show()
-        
+
+
+def create_lr_schedule_fig(scheduler, optimizer, max_epochs, save_as):
+    '''
+    Takes a learning rate scheduler, an optimizer, a maximum number of epochs, and a path.
+
+    Saves a figure that illustrates the learning rate across all epochs.
+    '''
+    # Make a copy of the scheduler to not change the one that will be used for training
+    lr_values = []
+
+    for epoch in range(max_epochs):
+        scheduler.step()
+
+        current_lr = optimizer.param_groups[0]["lr"]
+        lr_values.append(current_lr)
+
+    # Plot the learning rate over epochs
+    plt.plot(range(max_epochs), lr_values, label='Learning Rate')
+    plt.xlabel('Epoch')
+    plt.title('Learning Rate Schedule')
+    plt.legend()
+    plt.savefig(save_as)
+
+

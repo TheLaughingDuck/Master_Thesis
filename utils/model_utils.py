@@ -32,15 +32,14 @@ from monai.transforms import (
     Lambda
 )
 
-from sklearn.neighbors import KNeighborsClassifier
 
 class Classifier(nn.Module):
     def __init__(self):
         super().__init__()
         self.flatten = nn.Flatten()
         self.linear_relu_stack = nn.Sequential(
-            nn.Dropout(p=0.4),
-            nn.Linear(768*4**3, 20),
+            #nn.Dropout(p=0.1),
+            nn.Linear(768*4**3, 700),
             nn.ReLU(),
 
             # nn.Dropout(p=0.5),
@@ -51,14 +50,14 @@ class Classifier(nn.Module):
             # nn.Linear(768*16, 768*8),
             # nn.ReLU(),
 
-            # nn.Dropout(p=0.5),
-            # nn.Linear(768*8, 768),
-            # nn.ReLU(),
+            nn.Dropout(p=0.4),
+            nn.Linear(700, 300),
+            nn.ReLU(),
 
-            nn.Dropout(p=0.5),
-            nn.Linear(20, 3),
+            nn.Dropout(p=0.4),
+            nn.Linear(300, 3)#,
 
-            nn.Softmax(dim=0)
+            #nn.Softmax(dim=0)
         )
 
     def forward(self, x):
@@ -107,6 +106,18 @@ class EmbedSwinUNETR(SwinUNETR):
         # out = self.decoder1(dec0, enc0)
         # logits = self.out(out)
         # return logits
+
+
+class piped_classifier(torch.nn.Module):
+    def __init__(self, model1, model2):
+        super(piped_classifier, self).__init__()
+        self.model1 = model1
+        self.model2 = model2
+        
+    def forward(self, x):
+        x = self.model1(x)
+        x = self.model2(x)
+        return x
 
 
 from torcheval.metrics.functional import multiclass_accuracy, multiclass_confusion_matrix, multiclass_precision, multiclass_recall
