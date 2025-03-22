@@ -25,6 +25,7 @@ def custom_parser():
     parser.add_argument("--max_epochs", default=300, type=int, help="max number of training epochs")
     parser.add_argument("--debug_mode", default="False", type=str, help="Set the pipeline into debug mode: only a few observations are used to achieve massive speedup.") # change to store_true=False
     parser.add_argument("--comment", default="", type=str, help="A short comment for the output file, to help distinguish previous runs. Example: \".../runs/2025-XX-XX-XX:XX:XX (Deeper classifier)\"")
+    parser.add_argument("--freeze_blocks", default=0, type=int, help="The number of blocks to freeze in the feature extractor, starting at the input.")
 
     # Arguments to probably leave alone
     parser.add_argument("--val_every", default=5, type=int, help="validation frequency")

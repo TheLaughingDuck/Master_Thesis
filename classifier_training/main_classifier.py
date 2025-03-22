@@ -40,23 +40,41 @@ def main():
     # model_name = args.pretrained_model_name
     # pretrained_pth = os.path.join(pretrained_dir, model_name)
 
-    # Define classifier
-    classifier = Classifier().to(args.cl_device)
-    print(f"\nClassifier uses {args.cl_device} device.")
 
-    # Define Feature Extractor
-    feature_extractor = EmbedSwinUNETR()
-    feature_extractor.to(args.cl_device)
-    feature_extractor.load_state_dict(torch.load(args.feature_extractor, #"/local/data2/simjo484/BrainSegFounder_custom_finetuning/downstream/BraTS/finetuning/runs/2025-03-05-08:07:48/model_final.pt",
-                                                 map_location=args.pp_device)["state_dict"])
-    feature_extractor.eval(); print("Set Feature Extractor to eval mode. \N{Nerd Face}")
-    print(f"Feature Extractor using {args.cl_device} device.")
+    ####################################
+    ##### PREVIOUS MODEL DEFINITION ####
+    ####################################
+    
+    # # Define classifier
+    # classifier = Classifier().to(args.cl_device)
+    # print(f"\nClassifier uses {args.cl_device} device.")
 
-    model = piped_classifier(feature_extractor, classifier)
+    # # Define Feature Extractor
+    # feature_extractor = EmbedSwinUNETR()
+    # feature_extractor.to(args.cl_device)
+    # feature_extractor.load_state_dict(torch.load(args.feature_extractor, #"/local/data2/simjo484/BrainSegFounder_custom_finetuning/downstream/BraTS/finetuning/runs/2025-03-05-08:07:48/model_final.pt",
+    #                                              map_location=args.pp_device)["state_dict"])
+    # #feature_extractor.eval(); print("Set Feature Extractor to eval mode. \N{Nerd Face}")
+    # print(f"Feature Extractor using {args.cl_device} device.")
 
-    pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"Total parameters count: {pytorch_total_params} \N{Abacus} \N{Flexed Biceps}")
+    # model = piped_classifier(feature_extractor, classifier)
 
+    # pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    # print(f"Total parameters count: {pytorch_total_params} \N{Abacus} \N{Flexed Biceps}")
+
+    ####################################
+    ##### PREVIOUS MODEL DEFINITION ####
+    ####################################
+
+    #########################
+    # ALTERNATIVE MODEL DEF #
+    #########################
+
+    model = Combined_model(feature_extractor_weights=args.feature_extractor)
+    model.freeze(blocks=args.freeze_blocks)
+
+
+    #######################
     print("Batch size is:", args.batch_size, ". Max epochs:", args.max_epochs)
 
     best_acc = 0
@@ -81,13 +99,13 @@ def main():
 
     
     #### DEFINE Optimizer
+    parameters = filter(lambda p: p.requires_grad, model.parameters())
     if args.optim_name == "adam":
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.optim_lr, weight_decay=args.reg_weight)
+        optimizer = torch.optim.Adam(parameters, lr=args.optim_lr, weight_decay=args.reg_weight)
     elif args.optim_name == "adamw":
-        optimizer = torch.optim.AdamW(model.parameters(), lr=args.optim_lr, weight_decay=args.reg_weight)
+        optimizer = torch.optim.AdamW(parameters, lr=args.optim_lr, weight_decay=args.reg_weight)
     elif args.optim_name == "sgd":
-        optimizer = torch.optim.SGD(
-            model.parameters(), lr=args.optim_lr, momentum=args.momentum, nesterov=True, weight_decay=args.reg_weight
+        optimizer = torch.optim.SGD(parameters, lr=args.optim_lr, momentum=args.momentum, nesterov=True, weight_decay=args.reg_weight
         )
     else:
         raise ValueError("Unsupported Optimization Procedure: " + str(args.optim_name))
@@ -118,8 +136,7 @@ def main():
         #acc_func=dice_acc,
         args=args,
         scheduler=scheduler,
-        start_epoch=start_epoch,
-        feature_extractor=feature_extractor
+        start_epoch=start_epoch
     )
 
     return accuracy

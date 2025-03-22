@@ -47,6 +47,18 @@ from monai.transforms import (
 )
 
 def get_loader(args):
+    # Unpack arguments, so they can come in either parser, or dict form
+    if type(args) == dict:
+        batch_size = args["batch_size"]
+        test_mode = args["test_mode"]
+        debug_mode = args["debug_mode"]
+        workers = args["workers"]
+    else:
+        batch_size = args.batch_size
+        test_mode = args.test_mode
+        debug_mode = args.debug_mode
+        workers = args.workers
+
     
     # save_dir = "/home/simjo484/master_thesis/Master_Thesis/classifier_training/" 
     # with open(save_dir+"t2_training_paths.pkl", "rb") as f:
@@ -72,13 +84,20 @@ def get_loader(args):
     # Debug mode: Train on very few examples in order to achieve massive speedup, allowing debugging.
     if args.debug_mode == True:
         print("\nDebug mode!\n")
-        train_df = train_df[0:20]
-        valid_df = valid_df[0:20]
+        train_df = train_df[0:10]
+        valid_df = valid_df[0:10]
     
-    # Get loss weights (proportion of each class in training data)
-    n_diags = len(set(train_df["class_label"]))
-    class_counts = collections.Counter(train_df["class_label"]) # A dict with the class counts
-    loss_weights = torch.tensor([1/class_counts[i] for i in range(n_diags)])
+    # # Get loss weights (proportion of each class in training data)
+    # n_diags = len(set(train_df["class_label"]))
+    # class_counts = collections.Counter(train_df["class_label"]) # A dict with the class counts
+    # loss_weights = torch.tensor([1/class_counts[i] for i in range(n_diags)])
+
+    # Does almost the same thing as the commented out code above
+    from sklearn.utils import class_weight
+    labels = torch.tensor(train_df["class_label"].tolist()).long()
+    class_weights=class_weight.compute_class_weight('balanced',classes=np.unique(labels),y=labels.numpy())
+    loss_weights=torch.tensor(class_weights,dtype=torch.float)
+    print(f"\nThe loss weights are: {loss_weights}\n")
 
     # Format data paths
     img_root = "/local/data1/simjo484/mt_data/all_data/MRI/pre_processed/Final preprocessed files"
@@ -92,8 +111,8 @@ def get_loader(args):
         NormalizeIntensityd(keys="images", nonzero=True, channel_wise=True),
         Resized(keys="images", spatial_size=(128, 128, 128)),
 
-        RandRotate90d(keys="images", prob=0.5, max_k=3, spatial_axes=(0,1)),
-        RandFlipd(keys="images", prob=0.5, spatial_axis=2),
+        #RandRotate90d(keys="images", prob=0.5, max_k=3, spatial_axes=(0,1)),
+        #RandFlipd(keys="images", prob=0.5, spatial_axis=2),
 
         ToTensord(keys="images", track_meta=False)
     ])

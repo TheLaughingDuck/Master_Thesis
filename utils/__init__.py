@@ -27,7 +27,7 @@ __all__ = [
     "TrainingTracker",
 
     # model_utils.py
-    "Classifier", "EmbedSwinUNETR", "get_metrics", "generate_data", "piped_classifier",
+    "Classifier", "EmbedSwinUNETR", "get_metrics", "generate_data", "piped_classifier", "Combined_model",
 
     # parse_arguments.py
     "custom_parser",

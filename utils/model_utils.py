@@ -42,14 +42,6 @@ class Classifier(nn.Module):
             nn.Linear(768*4**3, 700),
             nn.ReLU(),
 
-            # nn.Dropout(p=0.5),
-            # nn.Linear(768, 100),
-            # nn.ReLU(),
-
-            # nn.Dropout(p=0.5),
-            # nn.Linear(768*16, 768*8),
-            # nn.ReLU(),
-
             nn.Dropout(p=0.4),
             nn.Linear(700, 300),
             nn.ReLU(),
@@ -119,13 +111,53 @@ class piped_classifier(torch.nn.Module):
         x = self.model2(x)
         return x
 
+class Combined_model(torch.nn.Module):
+    def __init__(self, feature_extractor_weights, device="cuda"):
+        super(Combined_model, self).__init__()
 
+        # SETUP Feature Extractor
+        self.feature_extractor = EmbedSwinUNETR()
+        self.feature_extractor.load_state_dict(torch.load(feature_extractor_weights, map_location=device)["state_dict"])
+        
+        self.classifier = Classifier()
+
+        # Settings
+        self.to(device)
+    
+    def freeze(self, blocks:int): # See this helpful link: https://spandan-madan.github.io/A-Collection-of-important-tasks-in-pytorch/
+        child_counter = 0
+        for child in self.feature_extractor.children():
+            #print(f"################### Child {child_counter} is (...)")
+            if child_counter == 0:
+                block_counter = 0
+                for block in child.children():
+                    if block_counter < blocks:
+                        print(f"Freezing block {block_counter} of Child {child_counter} in Feature Extractor.")
+                        for param in block.parameters():
+                            param.requires_grad = False
+
+                    block_counter += 1
+            
+            # End of main child loop
+            child_counter += 1
+
+    def forward(self, x):
+        x = self.feature_extractor(x)
+        x = self.classifier(x)
+        return x
+
+#%%
 from torcheval.metrics.functional import multiclass_accuracy, multiclass_confusion_matrix, multiclass_precision, multiclass_recall
-def get_metrics(all_preds, all_targets, num_classes):
+from utils.visualization_utils import get_conf_matrix, create_conf_matrix_fig
+
+def get_metrics(all_preds:list, all_targets:list, num_classes:int, args, epoch:int, conf_matr_title:str):
     '''
     Function that takes two torch tensors; all_preds, and all_targets,
     and calculates various performance metrics. Returns a dict structure.
     '''
+    # Create and save confusion matrix
+    conf_matrix = get_conf_matrix(all_preds=all_preds.tolist(), all_targets=all_targets.tolist())
+    create_conf_matrix_fig(conf_matrix, save_fig_as=args.logdir+"/validation_matrix", epoch=epoch, title=conf_matr_title)
 
     acc = multiclass_accuracy(all_preds, target=all_targets, num_classes=num_classes, average="micro")
     prec = multiclass_precision(all_preds, target=all_targets, num_classes=num_classes, average=None)
