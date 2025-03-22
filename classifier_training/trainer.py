@@ -38,9 +38,6 @@ def train_epoch(model, loader, optimizer, epoch, loss_func, args, feature_extrac
     for batch_id, batch_data in enumerate(loader):
         data, target = batch_data["images"].to(args.cl_device), batch_data["label"].to(args.cl_device)
 
-        # Extract features
-        #data = feature_extractor(data) # Taking a lot of time (before sending the FE to cuda device)
-        
         pred = model(data)
         loss = loss_func(pred, target)
         run_loss.update(loss.item(), n=args.batch_size)
@@ -79,7 +76,7 @@ def train_epoch(model, loader, optimizer, epoch, loss_func, args, feature_extrac
     return {"avg_loss": run_loss.avg}#avg_loss} # avg_loss #run_loss.item()
 
 
-def val_epoch(model, loader, epoch, loss_func, args, feature_extractor):
+def val_epoch(model, loader, epoch, loss_func, args):
     model.eval()
     n_observations = len(loader.dataset)
     num_batches = len(loader)
@@ -94,9 +91,6 @@ def val_epoch(model, loader, epoch, loss_func, args, feature_extractor):
     with torch.no_grad():
         for batch_id, batch_data in enumerate(loader):
             data, target = batch_data["images"].to(args.cl_device), batch_data["label"].to(args.cl_device)
-
-            # Extract features
-            #data = feature_extractor(data)
 
             # Calculate predicitons and loss
             pred = model(data)
@@ -157,8 +151,7 @@ def run_training(
     #acc_func,
     args,
     scheduler=None,
-    start_epoch=0,
-    feature_extractor=None
+    start_epoch=0
     ):
 
     # Setup TrainingTracker object
@@ -188,7 +181,7 @@ def run_training(
 
         # Run one training epoch
         train_metrics = train_epoch(
-            model, train_loader, optimizer, epoch=epoch, loss_func=loss_func, args=args, feature_extractor=feature_extractor
+            model, train_loader, optimizer, epoch=epoch, loss_func=loss_func, args=args
         )
 
         # Format the estimated end time
@@ -219,8 +212,7 @@ def run_training(
                 val_loader,
                 epoch=epoch,
                 loss_func=loss_func,
-                args=args,
-                feature_extractor=feature_extractor
+                args=args
             )
 
             print(
@@ -261,6 +253,8 @@ def run_training(
         
         # At the end of an epoch, save the metrics
         TT.update_epoch({"learning_rate":{"step":[epoch],"value":[scheduler.get_last_lr()[0]]}})
+        TT.make_key_fig(["avg_train_loss", "avg_valid_loss"], kwargs={"avg_train_loss": {"color": "blue", "label": "Training"}, "avg_valid_loss": {"color": "orange", "label": "Validation"}}, title="CrossEntropy loss")
+        
         if scheduler is not None:
             scheduler.step()
 
@@ -269,7 +263,7 @@ def run_training(
 
     TT.make_key_fig(["avg_train_loss", "avg_valid_loss"], kwargs={"avg_train_loss": {"color": "blue", "label": "Training"}, "avg_valid_loss": {"color": "orange", "label": "Validation"}}, title="CrossEntropy loss")
     TT.make_key_fig(["learning_rate"], title="Learning rate")
-    TT.make_key_fig(["learning_rate"], title="Learning rate")
+    TT.make_key_fig(["acc_glob_unweighted"], title="Acc. (glob. unweighted)")
     TT.to_json()
 
     return val_acc_max
