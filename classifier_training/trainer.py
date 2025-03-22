@@ -21,22 +21,29 @@ from torch.cuda.amp import GradScaler, autocast
 from utils import *
 
 from monai.data import decollate_batch
+from tensorflow.python.summary.summary_iterator import summary_iterator
+from matplotlib import pyplot as plt
+import re
 
 
 def train_epoch(model, loader, optimizer, epoch, loss_func, args, feature_extractor=None):
     model.train()
     start_time = time.time()
-    run_loss = 0 #AverageMeter()
-    num_batches = len(loader)
+    run_loss = AverageMeter()
+    #num_batches = len(loader)
+
+    all_preds = []
+    all_targets = []
     
     for batch_id, batch_data in enumerate(loader):
         data, target = batch_data["images"].to(args.cl_device), batch_data["label"].to(args.cl_device)
 
         # Extract features
-        data = feature_extractor(data) # Taking a lot of time (before sending the FE to cuda device)
+        #data = feature_extractor(data) # Taking a lot of time (before sending the FE to cuda device)
         
         pred = model(data)
         loss = loss_func(pred, target)
+        run_loss.update(loss.item(), n=args.batch_size)
 
         # Backpropagation
         loss.backward()
@@ -45,30 +52,41 @@ def train_epoch(model, loader, optimizer, epoch, loss_func, args, feature_extrac
 
         # Save loss
         # run_loss.update(loss.item(), n=args.batch_size)
-        run_loss += loss
+        #run_loss += loss
+
+        # Save preds and targets (for the full epoch)
+        all_preds += pred.argmax(1).tolist()
+        all_targets += target.tolist()
 
         print(
-            "Epoch {}/{} {}/{}".format(epoch, args.max_epochs, batch_id, len(loader)),
-            "loss: {:.4f}".format(loss),#loss.item()),
+            "Epoch {}/{}, batch {}/{},".format(epoch, args.max_epochs, batch_id, len(loader)),
+            "loss: {:.4f},".format(run_loss.avg),#loss.item()),
             "time {:.2f}s".format(time.time() - start_time),
         )
         start_time = time.time()
     
     #avg_loss = run_loss / num_batches
-    avg_loss = run_loss / (num_batches * args.batch_size)
+    #avg_loss = run_loss / (num_batches * args.batch_size)
     #print(f"Optimizer learning rate: {optimizer.state_dict()["param_groups"][0]["lr"]}") #Check that learning rate changes. It does!
+    
+    # Create train set confusion matrix
+    all_preds = torch.tensor(all_preds)
+    all_targets = torch.tensor(all_targets)
+    conf_matrix = get_conf_matrix(all_preds=all_preds.tolist(), all_targets=all_targets.tolist())
+    create_conf_matrix_fig(conf_matrix, save_fig_as=args.logdir+"/training_matrix", epoch=epoch, title="Training confusion matrix")
 
-    return {"avg_loss": avg_loss} # avg_loss #run_loss.item()
+
+    return {"avg_loss": run_loss.avg}#avg_loss} # avg_loss #run_loss.item()
 
 
 def val_epoch(model, loader, epoch, loss_func, args, feature_extractor):
     model.eval()
     n_observations = len(loader.dataset)
     num_batches = len(loader)
-    val_loss, correct = 0, 0
+    #val_loss, correct = 0, 0
     start_time = time.time()
-    # run_loss = AverageMeter()
-    run_loss = 0
+    run_loss = AverageMeter()
+    #run_loss = 0
 
     all_preds = []
     all_targets = []
@@ -78,13 +96,13 @@ def val_epoch(model, loader, epoch, loss_func, args, feature_extractor):
             data, target = batch_data["images"].to(args.cl_device), batch_data["label"].to(args.cl_device)
 
             # Extract features
-            data = feature_extractor(data)
+            #data = feature_extractor(data)
 
             # Calculate predicitons and loss
             pred = model(data)
-
-            val_loss = loss_func(pred, target).item() # Calculate loss
-            run_loss += val_loss
+            loss = loss_func(pred, target) # Calculate loss
+            run_loss.update(loss.item(), n=args.batch_size)
+            #run_loss += val_loss
 
             # Save preds and targets (for the full epoch)
             all_preds += pred.argmax(1).tolist()
@@ -94,17 +112,17 @@ def val_epoch(model, loader, epoch, loss_func, args, feature_extractor):
 
             print(
                 "Epoch {}/{} {}/{}".format(epoch, args.max_epochs, batch_id, len(loader)),
-                "loss: {:.4f}".format(val_loss),
+                "loss: {:.4f}".format(run_loss.avg),
                 "time {:.2f}s".format(time.time() - start_time),
             )
             start_time = time.time()
     
     # Calculate metrics
-    avg_loss = run_loss / (num_batches * args.batch_size)
+    #avg_loss = run_loss / (num_batches * args.batch_size)
     all_preds = torch.tensor(all_preds)
     all_targets = torch.tensor(all_targets)
     
-    metrics = get_metrics(all_preds, all_targets, num_classes=3)
+    metrics = get_metrics(all_preds=all_preds, all_targets=all_targets, num_classes=3, args=args, epoch=epoch, conf_matr_title="Validation confusion matrix") # this also makes conf matrices now.
 
     # mean_acc = multiclass_accuracy(all_preds, target=all_targets, num_classes=3, average="macro")
     # mean_prec = multiclass_precision(all_preds, target=all_targets, num_classes=3, average="macro")
@@ -115,7 +133,7 @@ def val_epoch(model, loader, epoch, loss_func, args, feature_extractor):
 
     #return {"avg_loss": avg_loss, "acc": (100*correct/n_observations)} #avg_loss #run_loss.avg
     #return {"avg_loss": avg_loss, "mean_acc": mean_acc, "mean_prec": mean_prec, "mean_rec": mean_rec}
-    return avg_loss, metrics
+    return run_loss.avg, metrics
 
 
 def save_checkpoint(model, epoch, args, filename="model.pt", best_acc=0, optimizer=None, scheduler=None):
@@ -142,6 +160,9 @@ def run_training(
     start_epoch=0,
     feature_extractor=None
     ):
+
+    # Setup TrainingTracker object
+    TT = TrainingTracker(args)
     
     # Setup log writer
     writer = None
@@ -185,6 +206,7 @@ def run_training(
         # Write results of one training epoch
         if writer is not None:
             writer.add_scalar("avg_train_loss", train_metrics["avg_loss"], epoch)
+            TT.update_epoch({"avg_train_loss":{"step":[epoch],"value":[float(train_metrics["avg_loss"])]}})
         b_new_best = False
 
         # Possibly run a validation epoch
@@ -214,12 +236,17 @@ def run_training(
                 # and "mean" to mean across the different diagnoses/groups
                 writer.add_scalar("avg_val_loss", avg_loss, epoch)
                 writer.add_scalar("acc", val_metrics["acc"], epoch)
+                TT.update_epoch({"avg_valid_loss":{"step":[epoch],"value":[float(avg_loss)]}})
+                TT.update_epoch({"acc_glob_unweighted":{"step":[epoch],"value":[float(val_metrics["acc"])]}})
+
                 for label in [0,1,2]:
                     writer.add_scalar("prec_class_"+str(label), val_metrics["prec"].tolist()[label], epoch)
                     writer.add_scalar("rec_class_"+str(label), val_metrics["rec"].tolist()[label], epoch)
+                    TT.update_epoch({"prec_class_"+str(label):{"step":[epoch],"value":[val_metrics["prec"].tolist()[label]]}})
+                    TT.update_epoch({"rec_class_"+str(label):{"step":[epoch],"value":[val_metrics["rec"].tolist()[label]]}})
 
             if val_metrics["acc"] > val_acc_max:
-                print("new best ({:.6f} --> {:.6f}). ".format(val_acc_max, val_metrics["acc"]))
+                print("New best val accuracy ({:.6f} --> {:.6f}). ".format(val_acc_max, val_metrics["acc"]))
                 val_acc_max = val_metrics["acc"]
                 b_new_best = True
                 if args.logdir is not None and args.save_checkpoint:
@@ -232,10 +259,17 @@ def run_training(
                     print("Copying to model.pt new best model!!!! \N{Sauropod} \N{T-Rex} \N{Crocodile} \N{Spouting Whale} \N{Dragon}")
                     shutil.copyfile(os.path.join(args.logdir, "model_final.pt"), os.path.join(args.logdir, "model.pt"))
         
+        # At the end of an epoch, save the metrics
+        TT.update_epoch({"learning_rate":{"step":[epoch],"value":[scheduler.get_last_lr()[0]]}})
         if scheduler is not None:
             scheduler.step()
 
     print("Training Finished !, Best validation accuracy: {:>0.1f}".format(val_acc_max.item()))
     print("\N{Sauropod} \N{Sauropod}")
+
+    TT.make_key_fig(["avg_train_loss", "avg_valid_loss"], kwargs={"avg_train_loss": {"color": "blue", "label": "Training"}, "avg_valid_loss": {"color": "orange", "label": "Validation"}}, title="CrossEntropy loss")
+    TT.make_key_fig(["learning_rate"], title="Learning rate")
+    TT.make_key_fig(["learning_rate"], title="Learning rate")
+    TT.to_json()
 
     return val_acc_max

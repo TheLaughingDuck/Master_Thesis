@@ -222,11 +222,12 @@ def observation_summary(observations, title=""):
 
 #%%
 
-def get_conf_matrix(all_targets, all_preds, n_classes=3):
+def get_conf_matrix(all_preds, all_targets, n_classes=3):
     '''
     Takes two integer lists of all target classes, and all predictions by some classifier.
 
-    Returns a confusion matrix, with true class on the columns, and predicted class on rows.
+    Returns a confusion matrix, with true class on rows, and predicted class on the columns,
+    as per https://scikit-learn.org/stable/modules/generated/sklearn.metrics.confusion_matrix.html
     '''
     matrix = [[0 for i in range(n_classes)] for i in range(n_classes)]
 
@@ -234,8 +235,8 @@ def get_conf_matrix(all_targets, all_preds, n_classes=3):
 
     for i in range(n_classes):
         for j in range(n_classes):
-            for pre, tar in zip(all_preds, all_targets):
-                if pre == i and tar == j:
+            for tar, pre in zip(all_targets, all_preds):
+                if tar == i and pre == j:
                     matrix[i][j] += 1
     
     return(matrix)
@@ -245,40 +246,44 @@ def get_conf_matrix(all_targets, all_preds, n_classes=3):
 # %%
 import re
 
-def create_conf_matrix_fig(train_mat, valid_mat, save_fig_as=None):
+def create_conf_matrix_fig(conf_matrix, save_fig_as=None, epoch=None, title=""):
     '''
     Takes confusion matrices (on training and validation data),
     and creates a figure with them. Saves as a png.
+
+    The true classes are on the rows, and the predicted values on the columns.
     '''
-    fig, axs = plt.subplots(ncols=2)
-    fig.tight_layout(rect=(0,0,1,0.999))
+    fig, axs = plt.subplots(ncols=1)
+    #fig.tight_layout(rect=(0,0,1,0.999))
 
-    axs[0].matshow(train_mat)
-    for (i, j), z in np.ndenumerate(train_mat):
-        axs[0].text(j, i, '{}'.format(z), ha='center', va='center')
-    axs[0].set_yticks(ticks=[0,1,2], labels=["Gli", "Epe", "Med"])
-    axs[0].set_xticks(ticks=[0,1,2], labels=["Gli", "Epe", "Med"])
-    axs[0].set_xlabel("True value")
-    axs[0].set_ylabel("Prediction")
-    axs[0].set_title("Training data")
+    # axs[0].matshow(train_mat)
+    # for (i, j), z in np.ndenumerate(train_mat):
+    #     axs[0].text(j, i, '{}'.format(z), ha='center', va='center')
+    # axs[0].set_yticks(ticks=[0,1,2], labels=["Gli", "Epe", "Med"])
+    # axs[0].set_xticks(ticks=[0,1,2], labels=["Gli", "Epe", "Med"])
+    # axs[0].set_xlabel("True value")
+    # axs[0].set_ylabel("Prediction")
+    # axs[0].set_title("Training data")
 
-    axs[1].matshow(valid_mat)
-    for (i, j), z in np.ndenumerate(valid_mat):
-        axs[1].text(j, i, '{}'.format(z), ha='center', va='center')
-    axs[1].set_yticks(ticks=[0,1,2], labels=["Gli", "Epe", "Med"])
-    axs[1].set_xticks(ticks=[0,1,2], labels=["Gli", "Epe", "Med"])
-    #axs[1].set_xlabel("True value")
-    #axs[1].set_ylabel("Prediction")
-    axs[1].set_title("Validation data")
+    axs.matshow(conf_matrix)
+    for (i, j), z in np.ndenumerate(conf_matrix):
+        axs.text(j, i, '{}'.format(z), ha='center', va='center')
+    axs.set_yticks(ticks=[0,1,2], labels=["Gli", "Epe", "Med"])
+    axs.set_xticks(ticks=[0,1,2], labels=["Gli", "Epe", "Med"])
+    axs.set_ylabel("True value")
+    axs.set_xlabel("Prediction")
+    #axs.set_title("Validation data")
 
     if save_fig_as != None:
         start_date = re.search(r"\d{4}-\d{2}-\d{2}-\d{2}:\d{2}:\d{2}", save_fig_as).group(0)
-        fig.suptitle("Confusion matrices ("+start_date+")", fontsize=16)
+        fig.suptitle(title+" (Epoch "+str(epoch)+")", fontsize=16)
         fig.savefig(save_fig_as)
     else:
-        fig.suptitle("Confusion matrices", fontsize=16)
+        fig.suptitle("Confusion matrix", fontsize=16)
         fig.show()
 
+
+#create_conf_matrix_fig([[3,4, 9], [1,2, 0], [1,2, 0]])
 
 def create_lr_schedule_fig(scheduler, optimizer, max_epochs, save_as):
     '''
@@ -302,4 +307,6 @@ def create_lr_schedule_fig(scheduler, optimizer, max_epochs, save_as):
     plt.legend()
     plt.savefig(save_as)
 
+
+# %%
 
