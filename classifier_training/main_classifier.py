@@ -25,54 +25,13 @@ import os
 os.chdir("/home/simjo484/master_thesis/Master_Thesis")
 from utils import *
 
-#parser = argparse.ArgumentParser(description="Classifier pipeline")
-
-# # Arguments that should be modified
-# parser.add_argument("--optim_lr", default=1e-3, type=float, help="optimization learning rate")
-# parser.add_argument("--lrschedule", default="warmup_cosine", type=str, help="type of learning rate scheduler")
-# parser.add_argument("--reg_weight", default=1e-5, type=float, help="regularization weight")
-# parser.add_argument("--warmup_epochs", default=50, type=int, help="number of warmup epochs")
-# parser.add_argument("--optim_name", default="adamw", type=str, help="optimization algorithm")
-# parser.add_argument("--feature_extractor", default="/local/data2/simjo484/Training_outputs/BSF_finetuning/runs/2025-03-05-08:07:48/model_final.pt", type=str, help="Path to the fine-tuned feature extractor model weights")
-# parser.add_argument("--max_epochs", default=300, type=int, help="max number of training epochs")
-# parser.add_argument("--debug_mode", default="False", type=str, help="Set the pipeline into debug mode: only a few observations are used to achieve massive speedup.") # change to store_true=False
-# parser.add_argument("--comment", default="", type=str, help="A short comment for the output file, to help distinguish previous runs. Example: \".../runs/2025-XX-XX-XX:XX:XX (Deeper classifier)\"")
-
-# # Arguments to probably leave alone
-# parser.add_argument("--val_every", default=5, type=int, help="validation frequency")
-# parser.add_argument("--batch_size", default=3, type=int, help="Number of observations per batch")
-# parser.add_argument("--logdir", default=".", type=str, help="directory to save the tensorboard logs")
-# parser.add_argument("--workers", default=18, type=int, help="number of workers")
-# parser.add_argument("--pp_device", default="cpu", type=str, help="Preprocessing device")
-# parser.add_argument("--cl_device", default="cuda", type=str, help="Classifier device")
-# parser.add_argument("--save_checkpoint", default="True", help="save checkpoint during training")
-# parser.add_argument("--checkpoint", default=None, help="start training from saved checkpoint") # just let it be for now. Have not implemented checkpointing
-# #parser.add_argument("--test_mode", action="store_true", default=False, help="just leave be, it's for the data loader")
-
 from utils.parse_arguments import custom_parser
 
 def main():
     args = custom_parser()
-    # args = parser.parse_args()
-    # args.logdir = "/local/data2/simjo484/Training_outputs/classifier_training/t2/runs/" + args.logdir
-    # args.test_mode = False
-    # if args.debug_mode == "False": args.debug_mode = False
-    # elif args.debug_mode == "True": args.debug_mode = True
-    # else: raise ValueError("--debug_mode argument is either \"True\" or \"False\"")
-
-    # if args.save_checkpoint == "False": args.save_checkpoint = False
-    # elif args.save_checkpoint == "True": args.save_checkpoint = True
-    # else: raise ValueError("--save_checkpoint argument is either \"True\" or \"False\"")
-
-    # # Mark debug runs so they are easy to find and delete
-    # if args.debug_mode == True: args.logdir += " (debug mode)"
-
-    # # Add an optional short comment to the logdir
-    # if args.comment != "": args.logdir += " (" + args.comment + ")"
-
     np.set_printoptions(formatter={"float": "{: 0.3f}".format}, suppress=True) # What does this do?
 
-    # Get data loaders
+    #### GET Data Loader (and loss weights)
     loader, loss_weights = get_loader(args)
 
 
@@ -86,13 +45,7 @@ def main():
     print(f"\nClassifier uses {args.cl_device} device.")
 
     # Define Feature Extractor
-    feature_extractor = EmbedSwinUNETR(
-        #img_size=(128, 128, 128),
-        #in_channels=4,
-        #out_channels=3,
-        #feature_size=48,
-        #use_checkpoint=True # "use gradient checkpointing to save memory"
-    )
+    feature_extractor = EmbedSwinUNETR()
     feature_extractor.to(args.cl_device)
     feature_extractor.load_state_dict(torch.load(args.feature_extractor, #"/local/data2/simjo484/BrainSegFounder_custom_finetuning/downstream/BraTS/finetuning/runs/2025-03-05-08:07:48/model_final.pt",
                                                  map_location=args.pp_device)["state_dict"])
@@ -127,7 +80,7 @@ def main():
     #     print("=> loaded checkpoint '{}' (epoch {}) (bestacc {})".format(args.checkpoint, start_epoch, best_acc))
 
     
-    # 
+    #### DEFINE Optimizer
     if args.optim_name == "adam":
         optimizer = torch.optim.Adam(model.parameters(), lr=args.optim_lr, weight_decay=args.reg_weight)
     elif args.optim_name == "adamw":
@@ -139,11 +92,10 @@ def main():
     else:
         raise ValueError("Unsupported Optimization Procedure: " + str(args.optim_name))
     
-    loss_fn = nn.CrossEntropyLoss(reduction="mean", weight=loss_weights) # This is apparently the NLLLoss! (Negative log likelihood. Range is [0 -> +inf)  )
-    #optimizer = torch.optim.SGD(model.parameters(), lr=args.optim_lr)
+    loss_fn = nn.CrossEntropyLoss(reduction="mean", weight=loss_weights)
 
 
-
+    #### DEFINE Learning Rate Scheduler
     if args.lrschedule == "warmup_cosine":
         scheduler = LinearWarmupCosineAnnealingLR(
             optimizer, warmup_epochs=args.warmup_epochs, max_epochs=args.max_epochs
@@ -156,6 +108,7 @@ def main():
         scheduler = None
     
 
+    #### RUN Training Loop
     accuracy = run_training(
         model=model,
         train_loader=loader[0],
@@ -168,38 +121,6 @@ def main():
         start_epoch=start_epoch,
         feature_extractor=feature_extractor
     )
-
-    ############# Create confusion matrices ###########
-    loader, loss_weights = get_loader(args)
-    
-    all_preds = []
-    all_targets = []
-    for batch_id, batch_data in enumerate(loader[0]):
-        data, target = batch_data["images"].to(args.cl_device), batch_data["label"].to(args.cl_device)
-        # Extract features, calc predictions
-        #data = feature_extractor(data)
-        pred = model(data)
-
-        # Save preds and targets
-        all_preds += pred.argmax(1).tolist()
-        all_targets += target.tolist()
-    train_mat = get_conf_matrix(all_targets=all_targets, all_preds=all_preds)
-
-    all_preds = []
-    all_targets = []
-    for batch_id, batch_data in enumerate(loader[1]):
-        data, target = batch_data["images"].to(args.cl_device), batch_data["label"].to(args.cl_device)
-        # Extract features, calc predictions
-        #data = feature_extractor(data)
-        pred = model(data)
-
-        # Save preds and targets
-        all_preds += pred.argmax(1).tolist()
-        all_targets += target.tolist()
-    valid_mat = get_conf_matrix(all_targets=all_targets, all_preds=all_preds)
-
-    # Create and save confusion matrix figure
-    create_conf_matrix_fig(train_mat=train_mat, valid_mat=valid_mat, save_fig_as=args.logdir+"/conf_matrices")
 
     return accuracy
 
