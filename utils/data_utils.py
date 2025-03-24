@@ -111,8 +111,8 @@ def get_loader(args):
         NormalizeIntensityd(keys="images", nonzero=True, channel_wise=True),
         Resized(keys="images", spatial_size=(128, 128, 128)),
 
-        #RandRotate90d(keys="images", prob=0.5, max_k=3, spatial_axes=(0,1)),
-        #RandFlipd(keys="images", prob=0.5, spatial_axis=2),
+        RandRotate90d(keys="images", prob=args.data_aug_prob, max_k=3, spatial_axes=(0,1)),
+        RandFlipd(keys="images", prob=args.data_aug_prob, spatial_axis=2),
 
         ToTensord(keys="images", track_meta=False)
     ])
