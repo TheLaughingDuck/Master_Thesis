@@ -12,21 +12,17 @@ import pdb
 import shutil
 import time
 
-import numpy as np
 import torch
 import torch.nn.parallel
 import torch.utils.data.distributed
 from tensorboardX import SummaryWriter
-from torch.cuda.amp import GradScaler, autocast
 from utils import *
 
-from monai.data import decollate_batch
-from tensorflow.python.summary.summary_iterator import summary_iterator
-from matplotlib import pyplot as plt
-import re
 
-
-def train_epoch(model, loader, optimizer, epoch, loss_func, args, feature_extractor=None):
+#############################
+###### TRAIN ONE EPOCH ######
+#############################
+def train_epoch(model, loader, optimizer, epoch, loss_func, args):
     model.train()
     start_time = time.time()
     run_loss = AverageMeter()
@@ -62,10 +58,6 @@ def train_epoch(model, loader, optimizer, epoch, loss_func, args, feature_extrac
         )
         start_time = time.time()
     
-    #avg_loss = run_loss / num_batches
-    #avg_loss = run_loss / (num_batches * args.batch_size)
-    #print(f"Optimizer learning rate: {optimizer.state_dict()["param_groups"][0]["lr"]}") #Check that learning rate changes. It does!
-    
     # Create train set confusion matrix
     all_preds = torch.tensor(all_preds)
     all_targets = torch.tensor(all_targets)
@@ -73,17 +65,18 @@ def train_epoch(model, loader, optimizer, epoch, loss_func, args, feature_extrac
     create_conf_matrix_fig(conf_matrix, save_fig_as=args.logdir+"/training_matrix", epoch=epoch, title="Training confusion matrix")
 
 
-    return {"avg_loss": run_loss.avg}#avg_loss} # avg_loss #run_loss.item()
+    return {"avg_loss": run_loss.avg}
 
 
+################################
+###### VALIDATE ONE EPOCH ######
+################################
 def val_epoch(model, loader, epoch, loss_func, args):
     model.eval()
-    n_observations = len(loader.dataset)
-    num_batches = len(loader)
-    #val_loss, correct = 0, 0
+    #n_observations = len(loader.dataset)
+    #num_batches = len(loader)
     start_time = time.time()
     run_loss = AverageMeter()
-    #run_loss = 0
 
     all_preds = []
     all_targets = []
@@ -102,8 +95,6 @@ def val_epoch(model, loader, epoch, loss_func, args):
             all_preds += pred.argmax(1).tolist()
             all_targets += target.tolist()
 
-            #correct += (pred.argmax(1) == target).type(torch.float).sum().item()
-
             print(
                 "Epoch {}/{} {}/{}".format(epoch, args.max_epochs, batch_id, len(loader)),
                 "loss: {:.4f}".format(run_loss.avg),
@@ -112,24 +103,17 @@ def val_epoch(model, loader, epoch, loss_func, args):
             start_time = time.time()
     
     # Calculate metrics
-    #avg_loss = run_loss / (num_batches * args.batch_size)
     all_preds = torch.tensor(all_preds)
     all_targets = torch.tensor(all_targets)
     
     metrics = get_metrics(all_preds=all_preds, all_targets=all_targets, num_classes=3, args=args, epoch=epoch, conf_matr_title="Validation confusion matrix") # this also makes conf matrices now.
 
-    # mean_acc = multiclass_accuracy(all_preds, target=all_targets, num_classes=3, average="macro")
-    # mean_prec = multiclass_precision(all_preds, target=all_targets, num_classes=3, average="macro")
-    # mean_rec = multiclass_recall(all_preds, target=all_targets, num_classes=3, average="macro")
-    #conf_mat = multiclass_confusion_matrix(all_preds, target=all_targets, num_classes=3)
-    
-    #print(f"Validation Error: \n Accuracy: {(100*correct/n_observations):>0.1f}%, Avg loss: {avg_loss:>8f} \n")
-
-    #return {"avg_loss": avg_loss, "acc": (100*correct/n_observations)} #avg_loss #run_loss.avg
-    #return {"avg_loss": avg_loss, "mean_acc": mean_acc, "mean_prec": mean_prec, "mean_rec": mean_rec}
     return run_loss.avg, metrics
 
 
+#############################
+###### SAVE CHECKPOINT ######
+#############################
 def save_checkpoint(model, epoch, args, filename="model.pt", best_acc=0, optimizer=None, scheduler=None):
     state_dict = model.state_dict()
     save_dict = {"epoch": epoch, "best_acc": best_acc, "state_dict": state_dict}
@@ -142,13 +126,15 @@ def save_checkpoint(model, epoch, args, filename="model.pt", best_acc=0, optimiz
     print("\nSaving checkpoint", filename)
 
 
+###############################
+###### RUN TRAINING LOOP ######
+###############################
 def run_training(
     model,
     train_loader,
     val_loader,
     optimizer,
     loss_func,
-    #acc_func,
     args,
     scheduler=None,
     start_epoch=0
@@ -255,6 +241,7 @@ def run_training(
         TT.update_epoch({"learning_rate":{"step":[epoch],"value":[scheduler.get_last_lr()[0]]}})
         TT.make_key_fig(["avg_train_loss", "avg_valid_loss"], kwargs={"avg_train_loss": {"color": "blue", "label": "Training"}, "avg_valid_loss": {"color": "orange", "label": "Validation"}}, title="CrossEntropy loss")
         
+        # Change to next learning rate value
         if scheduler is not None:
             scheduler.step()
 
