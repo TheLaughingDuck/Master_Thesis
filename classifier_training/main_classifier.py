@@ -28,11 +28,10 @@ from utils import *
 from utils.parse_arguments import custom_parser
 
 def main():
+    #### Parse the arguments
     args = custom_parser()
-    np.set_printoptions(formatter={"float": "{: 0.3f}".format}, suppress=True) # What does this do?
-
-    #### GET Data Loader (and loss weights)
-    loader, loss_weights = get_loader(args)
+    
+    #np.set_printoptions(formatter={"float": "{: 0.3f}".format}, suppress=True) # What does this do?
 
 
     # Should probably enable these when I want to be able to checkpoint the classifier
@@ -42,41 +41,25 @@ def main():
 
 
     ####################################
-    ##### PREVIOUS MODEL DEFINITION ####
+    ## V ##   MODEL DEFINITION   ## V ##
     ####################################
-    
-    # # Define classifier
-    # classifier = Classifier().to(args.cl_device)
-    # print(f"\nClassifier uses {args.cl_device} device.")
-
-    # # Define Feature Extractor
-    # feature_extractor = EmbedSwinUNETR()
-    # feature_extractor.to(args.cl_device)
-    # feature_extractor.load_state_dict(torch.load(args.feature_extractor, #"/local/data2/simjo484/BrainSegFounder_custom_finetuning/downstream/BraTS/finetuning/runs/2025-03-05-08:07:48/model_final.pt",
-    #                                              map_location=args.pp_device)["state_dict"])
-    # #feature_extractor.eval(); print("Set Feature Extractor to eval mode. \N{Nerd Face}")
-    # print(f"Feature Extractor using {args.cl_device} device.")
-
-    # model = piped_classifier(feature_extractor, classifier)
-
-    # pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    # print(f"Total parameters count: {pytorch_total_params} \N{Abacus} \N{Flexed Biceps}")
-
-    ####################################
-    ##### PREVIOUS MODEL DEFINITION ####
-    ####################################
-
-    #########################
-    # ALTERNATIVE MODEL DEF #
-    #########################
 
     model = Combined_model(feature_extractor_weights=args.feature_extractor)
     model.freeze(blocks=args.freeze_blocks)
 
+    ####################################
+    ## ^ ##   MODEL DEFINITION   ## ^ ##
+    ####################################
 
-    #######################
+    #### ARGUMENT PRINTOUT
+    print("\n\n##############################################\n")
+    pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Total parameters count: {pytorch_total_params} \N{Abacus} \N{Flexed Biceps}")
+    print(f"Model uses {args.cl_device} device.")
     print("Batch size is:", args.batch_size, ". Max epochs:", args.max_epochs)
+    print("\n##############################################\n\n")
 
+    # Used for checkpointing
     best_acc = 0
     start_epoch = 0
 
@@ -97,8 +80,13 @@ def main():
     #         best_acc = checkpoint["best_acc"]
     #     print("=> loaded checkpoint '{}' (epoch {}) (bestacc {})".format(args.checkpoint, start_epoch, best_acc))
 
+
+
+    ###########################################################
+    ## V ##   DEFINE OPTIMIZER AND SCHEDULER AND LOSS   ## V ##
+    ###########################################################
     
-    #### DEFINE Optimizer
+    #### OPTIMIZER
     parameters = filter(lambda p: p.requires_grad, model.parameters())
     if args.optim_name == "adam":
         optimizer = torch.optim.Adam(parameters, lr=args.optim_lr, weight_decay=args.reg_weight)
@@ -108,12 +96,10 @@ def main():
         optimizer = torch.optim.SGD(parameters, lr=args.optim_lr, momentum=args.momentum, nesterov=True, weight_decay=args.reg_weight
         )
     else:
-        raise ValueError("Unsupported Optimization Procedure: " + str(args.optim_name))
-    
-    loss_fn = nn.CrossEntropyLoss(reduction="mean", weight=loss_weights)
+        raise ValueError("Unsupported Optimization Procedure: " + str(args.optim_name))    
 
 
-    #### DEFINE Learning Rate Scheduler
+    #### Learning Rate SCHEDULER
     if args.lrschedule == "warmup_cosine":
         scheduler = LinearWarmupCosineAnnealingLR(
             optimizer, warmup_epochs=args.warmup_epochs, max_epochs=args.max_epochs
@@ -125,6 +111,18 @@ def main():
     else:
         scheduler = None
     
+    
+    #### DATA LOADER
+    loader, loss_weights = get_loader(args)
+
+
+    #### LOSS FUNCTION
+    loss_fn = nn.CrossEntropyLoss(reduction="mean", weight=loss_weights)
+
+    ###########################################################
+    ## ^ ##   DEFINE OPTIMIZER AND SCHEDULER AND LOSS   ## ^ ##
+    ###########################################################
+    
 
     #### RUN Training Loop
     accuracy = run_training(
@@ -133,7 +131,6 @@ def main():
         val_loader=loader[1],
         optimizer=optimizer,
         loss_func=loss_fn,
-        #acc_func=dice_acc,
         args=args,
         scheduler=scheduler,
         start_epoch=start_epoch
