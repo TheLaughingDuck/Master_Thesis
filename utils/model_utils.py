@@ -1,5 +1,5 @@
 '''
-This file provides setup like classes that are necessary for the training of a classifier.
+Helper utils for setting up the model in a training pipeline.
 '''
 
 from torch import nn
@@ -82,11 +82,11 @@ class EmbedSwinUNETR(SwinUNETR):
         hidden_states_out = self.swinViT(x_in, self.normalize)
 
         return hidden_states_out[4]
-        #enc0 = self.encoder1(x_in)
-        #enc1 = self.encoder2(hidden_states_out[0])
-        #enc2 = self.encoder3(hidden_states_out[1])
-        #enc3 = self.encoder4(hidden_states_out[2])
-        #dec4 = self.encoder10(hidden_states_out[4])
+        # enc0 = self.encoder1(x_in)
+        # enc1 = self.encoder2(hidden_states_out[0])
+        # enc2 = self.encoder3(hidden_states_out[1])
+        # enc3 = self.encoder4(hidden_states_out[2])
+        # dec4 = self.encoder10(hidden_states_out[4])
 
         # Just return this embedding
         #return(dec4)
@@ -99,8 +99,22 @@ class EmbedSwinUNETR(SwinUNETR):
         # logits = self.out(out)
         # return logits
 
+class Feature_extractor(SwinUNETR): # Not used
+    def __init__(self):
+        super(Feature_extractor, self).__init__(
+            img_size=(128, 128, 128), # Essentially trivial
+            in_channels=4,
+            out_channels=3,
+            feature_size=48,
+            use_checkpoint=True)
+    
+    def forward(self, x):
+        x = self.swinViT(x, self.normalize)[4]
+        return(x)
 
-class piped_classifier(torch.nn.Module):
+
+
+class piped_classifier(torch.nn.Module): #Not used
     def __init__(self, model1, model2):
         super(piped_classifier, self).__init__()
         self.model1 = model1
@@ -117,6 +131,7 @@ class Combined_model(torch.nn.Module):
 
         # SETUP Feature Extractor
         self.feature_extractor = EmbedSwinUNETR()
+        #weights_default_val = 
         self.feature_extractor.load_state_dict(torch.load(feature_extractor_weights, map_location=device)["state_dict"])
         
         self.classifier = Classifier()
@@ -124,23 +139,35 @@ class Combined_model(torch.nn.Module):
         # Settings
         self.to(device)
     
-    def freeze(self, blocks:int): # See this helpful link: https://spandan-madan.github.io/A-Collection-of-important-tasks-in-pytorch/
+    def freeze(self, blocks:int=0): # See this helpful link: https://spandan-madan.github.io/A-Collection-of-important-tasks-in-pytorch/
+        # First freeze all parameters, so that old parameters that are just hanging on get frozen.
+        for param in self.feature_extractor.parameters():
+            param.requires_grad = False
+        print("\n\n==============================================")
+        print("Froze ALL parameters in Feature Extractor.")
+
+        # Then unfreeze the specific blocks we want
         child_counter = 0
         for child in self.feature_extractor.children():
-            #print(f"################### Child {child_counter} is (...)")
-            if child_counter == 0:
+            #print(f"################### Child {child_counter} is {child}")
+
+            if child_counter == 0: # This represents the 
                 block_counter = 0
                 for block in child.children():
-                    if block_counter < blocks:
-                        print(f"Freezing block {block_counter} of Child {child_counter} in Feature Extractor.")
+                    if not block_counter < blocks:
+                        print(f"Unfreezing block {block_counter} of Child {child_counter} in Feature Extractor.")
                         for param in block.parameters():
-                            param.requires_grad = False
+                            param.requires_grad = True
 
                     block_counter += 1
-            
-            # End of main child loop
             child_counter += 1
 
+        n_params = lambda x: sum(p.numel() for p in x.parameters() if p.requires_grad)
+        print(f"\nFeature extractpor parameters: {n_params(self.feature_extractor)}")
+        print(f"Classifier parameters: {n_params(self.classifier)}")
+        print(f"Total parameters count: {n_params(self)} \N{Abacus} \N{Flexed Biceps}")
+        print("==============================================\n\n")
+        
     def forward(self, x):
         x = self.feature_extractor(x)
         x = self.classifier(x)
