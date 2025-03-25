@@ -1,5 +1,5 @@
 '''
-Helper functions for handling data in a training pipeline
+Helper functions for handling data loading in a training pipeline.
 '''
 
 import json

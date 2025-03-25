@@ -1,11 +1,10 @@
-from .data_split_utils import *
-from .data_utils import *
+from .data_split import *
+from .data_loading import *
 from .inspect_training_utils import *
 from .lr_scheduler import *
 from .misc_utils import *
 from .model_utils import *
 from .parse_arguments import *
-from .test_utils import *
 from .utils import *
 from .visualization_utils import *
 
@@ -18,7 +17,7 @@ __all__ = [
     "get_loader",
 
     # inspect_training_utils.py
-    "create_loss_curve_fig",
+    #"create_loss_curve_fig", #removed as it does not seem to be used
 
     # lr_scheduler.py
     "LinearWarmupCosineAnnealingLR",
@@ -27,13 +26,12 @@ __all__ = [
     "TrainingTracker",
 
     # model_utils.py
-    "Classifier", "EmbedSwinUNETR", "get_metrics", "generate_data", "piped_classifier", "Combined_model",
+    "Classifier", "get_metrics", "piped_classifier", "Combined_model", "Feature_extractor",
+    #"EmbedSwinUNETR", #(used internally in model_utils.py)
+    #"generate_data", # Not used, deprecated
 
     # parse_arguments.py
     "custom_parser",
-    
-    # test_utils.py
-    "bar",
 
     # utils.py
     "AverageMeter",
