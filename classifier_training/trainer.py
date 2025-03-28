@@ -240,10 +240,15 @@ def run_training(
         # At the end of an epoch, save the metrics
         TT.update_epoch({"learning_rate":{"step":[epoch],"value":[scheduler.get_last_lr()[0]]}})
         TT.make_key_fig(["avg_train_loss", "avg_valid_loss"], kwargs={"avg_train_loss": {"color": "blue", "label": "Training"}, "avg_valid_loss": {"color": "orange", "label": "Validation"}}, title="CrossEntropy loss")
-        
+        TT.make_key_fig(["acc_glob_unweighted"], title="Acc. (glob. unweighted)")
+        TT.make_key_fig(["learning_rate"], title="Learning rate")
+
         # Change to next learning rate value
         if scheduler is not None:
-            scheduler.step()
+            if args.lrschedule == "reduce_on_plateau":
+                scheduler.step(train_metrics["avg_loss"])
+            else:
+                scheduler.step()
 
     print("Training Finished !, Best validation accuracy: {:>0.1f}".format(val_acc_max.item()))
     print("\N{Sauropod} \N{Sauropod}")

@@ -96,7 +96,7 @@ def get_loader(args):
     from sklearn.utils import class_weight
     labels = torch.tensor(train_df["class_label"].tolist()).long()
     class_weights=class_weight.compute_class_weight('balanced',classes=np.unique(labels),y=labels.numpy())
-    loss_weights=torch.tensor(class_weights,dtype=torch.float)
+    loss_weights=torch.tensor(class_weights,dtype=torch.float).to(args.cl_device)
     print(f"\nThe loss weights are: {loss_weights}\n")
 
     # Format data paths
@@ -108,11 +108,33 @@ def get_loader(args):
     # Define train transform
     train_transform = Compose([
         LoadImaged(keys="images"),
-        NormalizeIntensityd(keys="images", nonzero=True, channel_wise=True),
-        Resized(keys="images", spatial_size=(128, 128, 128)),
+        
+        #Resized(keys="images", spatial_size=(128, 128, 128)), # This changes the size through scaling
 
-        RandRotate90d(keys="images", prob=args.data_aug_prob, max_k=3, spatial_axes=(0,1)),
-        RandFlipd(keys="images", prob=args.data_aug_prob, spatial_axis=2),
+        # transforms.CropForegroundd(
+        #     keys="images", source_key="images", k_divisible=[args.roi_x, args.roi_y, args.roi_z]
+        # ),
+        transforms.SpatialCropd(
+            keys="images", roi_center=[120,120,52], roi_size=[128,128,128]
+        ),
+        # transforms.RandSpatialCropd(
+        #     keys="images", roi_size=[args.roi_x, args.roi_y, args.roi_z], random_size=False, random_center=False
+        # ),
+        
+        # New augmentations
+        transforms.RandFlipd(keys="images", prob=0.5, spatial_axis=0),
+        transforms.RandFlipd(keys="images", prob=0.5, spatial_axis=1),
+        transforms.RandFlipd(keys="images", prob=0.5, spatial_axis=2),
+        
+        #RandRotate90d(keys="images", prob=args.data_aug_prob, max_k=3, spatial_axes=(0,1)),
+        #RandFlipd(keys="images", prob=args.data_aug_prob, spatial_axis=2),
+
+        NormalizeIntensityd(keys="images", nonzero=True, channel_wise=True),
+
+        # Intensity augmentations
+        transforms.NormalizeIntensityd(keys="images", nonzero=True, channel_wise=True),
+        transforms.RandScaleIntensityd(keys="images", factors=0.1, prob=1.0),
+        transforms.RandShiftIntensityd(keys="images", offsets=0.1, prob=1.0),
 
         ToTensord(keys="images", track_meta=False)
     ])
@@ -121,8 +143,21 @@ def get_loader(args):
     # Define valid transform
     valid_transform = Compose([
         LoadImaged(keys="images"),
+
+        # New transformations
+        # transforms.CropForegroundd(
+        #     keys="images", source_key="images", k_divisible=[args.roi_x, args.roi_y, args.roi_z]
+        # ),
+        # transforms.RandSpatialCropd(
+        #     keys="images", roi_size=[args.roi_x, args.roi_y, args.roi_z], random_size=False
+        # ),
+        
+        # New transformation
+        transforms.SpatialCropd(
+            keys="images", roi_center=[120,120,52], roi_size=[128,128,128]
+        ),
+
         NormalizeIntensityd(keys="images", nonzero=True, channel_wise=True),
-        Resized(keys="images", spatial_size=(128, 128, 128)),
         ToTensord(keys="images", track_meta=False),
     ])
 
@@ -140,7 +175,7 @@ def get_loader(args):
             valid_ds, batch_size=args.batch_size, shuffle=False, num_workers=args.workers, pin_memory=True, prefetch_factor=4
         )
 
-    loss_weights = None
+    #loss_weights = None
     return([train_dataloader, valid_dataloader], loss_weights)
 
 

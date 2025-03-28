@@ -29,7 +29,7 @@ from utils.parse_arguments import custom_parser
 
 def main():
     #### Parse the arguments
-    args = custom_parser()
+    args = custom_parser(terminal=True)
     
     #np.set_printoptions(formatter={"float": "{: 0.3f}".format}, suppress=True) # What does this do?
 
@@ -44,8 +44,8 @@ def main():
     ## V ##   MODEL DEFINITION   ## V ##
     ####################################
 
-    model = Combined_model(feature_extractor_weights=args.feature_extractor)
-    model.freeze(blocks=args.freeze_blocks)
+    model = Combined_model(feature_extractor_weights="/local/data2/simjo484/Training_outputs/BSF_finetuning/runs/2025-03-27-13:20:53/model_final.pt") #args.feature_extractor)
+    model.freeze()#blocks=args.freeze_blocks)
 
     ####################################
     ## ^ ##   MODEL DEFINITION   ## ^ ##
@@ -54,7 +54,7 @@ def main():
     #### ARGUMENT PRINTOUT
     print("\n\n##############################################\n")
     pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"Total parameters count: {pytorch_total_params} \N{Abacus} \N{Flexed Biceps}")
+    print(f"Total parameters count: {format(pytorch_total_params, ",").replace(",", ".")} \N{Abacus} \N{Flexed Biceps}")
     print(f"Model uses {args.cl_device} device.")
     print("Batch size is:", args.batch_size, ". Max epochs:", args.max_epochs)
     print("\n##############################################\n\n")
@@ -96,7 +96,7 @@ def main():
         optimizer = torch.optim.SGD(parameters, lr=args.optim_lr, momentum=args.momentum, nesterov=True, weight_decay=args.reg_weight
         )
     else:
-        raise ValueError("Unsupported Optimization Procedure: " + str(args.optim_name))    
+        raise ValueError("Unsupported Optimization Procedure: " + str(args.optim_name))
 
 
     #### Learning Rate SCHEDULER
@@ -104,20 +104,28 @@ def main():
         scheduler = LinearWarmupCosineAnnealingLR(
             optimizer, warmup_epochs=args.warmup_epochs, max_epochs=args.max_epochs
         )
+        print("\nUsing Warmup cosine learning rate")
     elif args.lrschedule == "cosine_anneal":
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.max_epochs)
         if args.checkpoint is not None:
             scheduler.step(epoch=start_epoch)
+    elif args.lrschedule == "reduce_on_plateau":
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, factor=0.9)
+        print("Using Reduce on Plateau scheduler")
+        
+    elif args.lrschedule == "constant":
+        scheduler = torch.optim.lr_scheduler.ConstantLR(optimizer, factor=1, total_iters=0)
+        print(f"\n\nUsing constant learning rate {args.optim_lr}.\n\n")
     else:
         scheduler = None
     
     
     #### DATA LOADER
-    loader, loss_weights = get_loader(args)
-
+    loader, loss_weights = get_loader(args) #Classes are Gli (0), Epe (1), Med (2).
+    print(f"\nThe loss weights are: {loss_weights}\n")
 
     #### LOSS FUNCTION
-    loss_fn = nn.CrossEntropyLoss(reduction="mean", weight=loss_weights)
+    loss_fn = nn.CrossEntropyLoss(reduction="sum", weight=loss_weights)
 
     ###########################################################
     ## ^ ##   DEFINE OPTIMIZER AND SCHEDULER AND LOSS   ## ^ ##

@@ -10,37 +10,71 @@ import argparse
 import os
 
 
-def custom_parser():
-    ######### Create parser
-    parser = argparse.ArgumentParser(description="Classifier pipeline")
+def custom_parser(terminal=False):
+    '''
+    A function that returns an argparse.Namespace object.
 
-    ######### Creates arguments
-    # Arguments that should be modified
-    parser.add_argument("--optim_lr", default=1e-3, type=float, help="optimization learning rate")
-    parser.add_argument("--lrschedule", default="warmup_cosine", type=str, help="type of learning rate scheduler")
-    parser.add_argument("--reg_weight", default=1e-5, type=float, help="regularization weight")
-    parser.add_argument("--warmup_epochs", default=50, type=int, help="number of warmup epochs")
-    parser.add_argument("--optim_name", default="adamw", type=str, help="optimization algorithm")
-    parser.add_argument("--feature_extractor", default="/local/data2/simjo484/Training_outputs/BSF_finetuning/runs/2025-03-05-08:07:48/model_final.pt", type=str, help="Path to the fine-tuned feature extractor model weights")
-    parser.add_argument("--max_epochs", default=300, type=int, help="max number of training epochs")
-    parser.add_argument("--debug_mode", default="False", type=str, help="Set the pipeline into debug mode: only a few observations are used to achieve massive speedup.") # change to store_true=False
-    parser.add_argument("--comment", default="", type=str, help="A short comment for the output file, to help distinguish previous runs. Example: \".../runs/2025-XX-XX-XX:XX:XX (Deeper classifier)\"")
-    parser.add_argument("--freeze_blocks", default=0, type=int, help="The number of blocks to freeze in the feature extractor, starting at the input.")
-    parser.add_argument("--data_aug_prob", default=0.3, type=float, help="The probability used for the data augmentation of the training data.")
+    It would be nice to develop this func further, to take kwargs, that can be added to the argparse.Namespace object,
+    and that their default values match up with the ones below in the ArgumentParser part, but I don't have the time to fix that at the moment.
+    
+    terminal: whether the main script is run in a terminal, meaning there are arguments that need to be parsed,
+            or if it is run in a jupyter notebook, meaning potential arguments need to be specified as keyword arguments instead.
+    '''
 
-    # Arguments to probably leave alone
-    parser.add_argument("--val_every", default=5, type=int, help="validation frequency")
-    parser.add_argument("--batch_size", default=3, type=int, help="Number of observations per batch")
-    parser.add_argument("--logdir", default=".", type=str, help="directory to save the tensorboard logs")
-    parser.add_argument("--workers", default=18, type=int, help="number of workers")
-    parser.add_argument("--pp_device", default="cpu", type=str, help="Preprocessing device")
-    parser.add_argument("--cl_device", default="cuda", type=str, help="Classifier device")
-    parser.add_argument("--save_checkpoint", default="True", help="save checkpoint during training")
-    parser.add_argument("--checkpoint", default=None, help="start training from saved checkpoint") # just let it be for now. Have not implemented checkpointing
-    #parser.add_argument("--test_mode", action="store_true", default=False, help="just leave be, it's for the data loader")
+    if terminal == False:
+        class Args(argparse.Namespace):
+            logdir = ""
+            optim_lr = 1e-4
+            reg_weight = 1e-5
+            roi_x = 128
+            roi_y = 128
+            roi_z = 128
+            distributed = False
+            workers = 18
+            data_dir='/local/data2/simjo484/BRATScommon/BRATS21/'
+            json_list = "./jsons/brats21_folds.json"
+            fold = 4
+            test_mode = False
+            batch_size = 2
+            debug_mode = False
+            cl_device = "cuda"
+            pp_device = "cpu"
+            data_aug_prob = 0.3
+        
+        args = Args()
+        return(args)
+    else:
+        ######### Create parser
+        parser = argparse.ArgumentParser(description="Classifier pipeline")
+
+        ######### Creates arguments
+        # Arguments that should be modified
+        parser.add_argument("--optim_lr", default=1e-3, type=float, help="optimization learning rate")
+        parser.add_argument("--lrschedule", default="warmup_cosine", type=str, help="type of learning rate scheduler")
+        parser.add_argument("--reg_weight", default=1e-5, type=float, help="regularization weight")
+        parser.add_argument("--warmup_epochs", default=50, type=int, help="number of warmup epochs")
+        parser.add_argument("--optim_name", default="adamw", type=str, help="optimization algorithm")
+        parser.add_argument("--feature_extractor", default="/local/data2/simjo484/Training_outputs/BSF_finetuning/runs/2025-03-05-08:07:48/model_final.pt", type=str, help="Path to the fine-tuned feature extractor model weights")
+        parser.add_argument("--max_epochs", default=300, type=int, help="max number of training epochs")
+        parser.add_argument("--debug_mode", default="False", type=str, help="Set the pipeline into debug mode: only a few observations are used to achieve massive speedup.") # change to store_true=False
+        parser.add_argument("--comment", default="", type=str, help="A short comment for the output file, to help distinguish previous runs. Example: \".../runs/2025-XX-XX-XX:XX:XX (Deeper classifier)\"")
+        parser.add_argument("--freeze_blocks", default=0, type=int, help="The number of blocks to freeze in the feature extractor, starting at the input.")
+        parser.add_argument("--data_aug_prob", default=0.3, type=float, help="The probability used for the data augmentation of the training data.")
+
+        # Arguments to probably leave alone
+        parser.add_argument("--val_every", default=5, type=int, help="validation frequency")
+        parser.add_argument("--batch_size", default=3, type=int, help="Number of observations per batch")
+        parser.add_argument("--logdir", default=".", type=str, help="directory to save the tensorboard logs")
+        parser.add_argument("--workers", default=18, type=int, help="number of workers")
+        parser.add_argument("--pp_device", default="cpu", type=str, help="Preprocessing device")
+        parser.add_argument("--cl_device", default="cuda", type=str, help="Classifier device")
+        parser.add_argument("--save_checkpoint", default="True", help="save checkpoint during training")
+        parser.add_argument("--checkpoint", default=None, help="start training from saved checkpoint") # just let it be for now. Have not implemented checkpointing
+        #parser.add_argument("--test_mode", action="store_true", default=False, help="just leave be, it's for the data loader")
+        
+        args = parser.parse_args()
     
     ######### Process arguments
-    args = parser.parse_args()
     args.logdir = "/local/data2/simjo484/Training_outputs/classifier_training/t2/runs/" + args.logdir
     args.test_mode = False
     if args.debug_mode == "False": args.debug_mode = False
