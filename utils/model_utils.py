@@ -39,11 +39,11 @@ class Classifier(nn.Module):
         self.flatten = nn.Flatten()
         self.linear_relu_stack = nn.Sequential(
             #nn.Dropout(p=0.1),
-            nn.Linear(768, 10),
+            nn.Linear(768, 100),
             nn.ReLU(),
 
             nn.Dropout(p=0.1),
-            nn.Linear(10, 3)#,
+            nn.Linear(100, 3)#,
             #nn.ReLU(),
 
             # nn.Dropout(p=0.4),
@@ -148,7 +148,7 @@ class Combined_model(torch.nn.Module):
         
         return(self.forward(x_in))
     
-    def freeze(self):
+    def freeze(self, args):
         # First freeze all parameters, so that old parameters that are just hanging on get frozen.
         for param in self.feature_extractor.parameters():
             param.requires_grad = False
@@ -158,7 +158,7 @@ class Combined_model(torch.nn.Module):
         # Cycle through all the 4 modules of the SwinViT
         module_count = 0
         for ch in self.feature_extractor.swinViT.children():
-            if module_count in [3]:
+            if module_count in args.freeze_blocks: #e.g. [3,4]
                 print(f"Unfreezing SwinViT module {module_count}")
                 for param in ch.parameters():
                     param.requires_grad = True
@@ -205,14 +205,18 @@ class Combined_model(torch.nn.Module):
 from torcheval.metrics.functional import multiclass_accuracy, multiclass_confusion_matrix, multiclass_precision, multiclass_recall
 from utils.visualization_utils import get_conf_matrix, create_conf_matrix_fig
 
-def get_metrics(all_preds:list, all_targets:list, num_classes:int, args, epoch:int, conf_matr_title:str):
+def get_metrics(all_preds:list, all_targets:list, num_classes:int, epoch:int, conf_matr_title:str, args=None, config=None):
     '''
     Function that takes two torch tensors; all_preds, and all_targets,
     and calculates various performance metrics. Returns a dict structure.
     '''
+
+    if args != None: figname = args.logdir + "/validation_matrix"
+    else: figname = config["logdir"]+"/validation_matrix"
+
     # Create and save confusion matrix
     conf_matrix = get_conf_matrix(all_preds=all_preds.tolist(), all_targets=all_targets.tolist())
-    create_conf_matrix_fig(conf_matrix, save_fig_as=args.logdir+"/validation_matrix", epoch=epoch, title=conf_matr_title)
+    create_conf_matrix_fig(conf_matrix, save_fig_as=figname, epoch=epoch, title=conf_matr_title)
 
     acc = multiclass_accuracy(all_preds, target=all_targets, num_classes=num_classes, average="micro")
     prec = multiclass_precision(all_preds, target=all_targets, num_classes=num_classes, average=None)

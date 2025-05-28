@@ -27,7 +27,7 @@ __all__ = [
 
     # model_utils.py
     "Classifier", "get_metrics", "piped_classifier", "Combined_model", "Feature_extractor",
-    #"EmbedSwinUNETR", #(used internally in model_utils.py)
+    "EmbedSwinUNETR", #(used internally in model_utils.py)
     #"generate_data", # Not used, deprecated
 
     # parse_arguments.py
@@ -37,7 +37,7 @@ __all__ = [
     "AverageMeter",
 
     # visualization_utils.py
-    "show_image_v2", "unique", "observation_summary", "get_conf_matrix", "create_conf_matrix_fig", "create_lr_schedule_fig"
+    "show_image_v2", "unique", "observation_summary", "get_conf_matrix", "create_conf_matrix_fig", "create_lr_schedule_fig", "array_from_path"
     ]
 
 if __name__ != "__main__":
