@@ -27,6 +27,11 @@ from utils import *
 
 from utils.parse_arguments import custom_parser
 
+# The config dict is here just acting as a way to save some information about the training, for example the number of trainable parameters.
+config = {
+
+}
+
 def main():
     #### Parse the arguments
     args = custom_parser(terminal=True)
@@ -44,9 +49,12 @@ def main():
     ## V ##   MODEL DEFINITION   ## V ##
     ####################################
 
-    model = Combined_model(feature_extractor_weights="/local/data2/simjo484/Training_outputs/BSF_finetuning/runs/2025-03-27-13:20:53/model_final.pt") #args.feature_extractor)
-    model.freeze()#blocks=args.freeze_blocks)
+    #model = Combined_model(feature_extractor_weights="/local/data2/simjo484/Training_outputs/BSF_finetuning/runs/2025-03-27-13:20:53/model_final.pt") #args.feature_extractor)
+    model = Combined_model(feature_extractor_weights="/local/data2/simjo484/Training_outputs/BSF_finetuning/runs_t1gd_and_t2/2025-03-28-23:14:58/model_final.pt") #args.feature_extractor)
+    model.freeze(args)#blocks=args.freeze_blocks)
 
+    config["FE_parameters"] = sum(p.numel() for p in model.feature_extractor.parameters() if p.requires_grad)
+    config["classifier_parameters"] = sum(p.numel() for p in model.classifier.parameters() if p.requires_grad)
     ####################################
     ## ^ ##   MODEL DEFINITION   ## ^ ##
     ####################################
@@ -121,8 +129,15 @@ def main():
     
     
     #### DATA LOADER
-    loader, loss_weights = get_loader(args) #Classes are Gli (0), Epe (1), Med (2).
+    if args.T2: seq_types = "T2W"
+    elif args.T1GD: seq_types = "T1W-GD"
+    elif args.T1GD_T2: seq_types = "T1W-GD_T2W"
+    else:
+        raise ValueError("Incorrect sequence type specification.")
+
+    loader, loss_weights = get_loader(args, seq_types) #Classes are Gli (0), Epe (1), Med (2).
     print(f"\nThe loss weights are: {loss_weights}\n")
+    config["loss_weights"] = loss_weights.tolist()
 
     #### LOSS FUNCTION
     loss_fn = nn.CrossEntropyLoss(reduction="sum", weight=loss_weights)
@@ -141,7 +156,8 @@ def main():
         loss_func=loss_fn,
         args=args,
         scheduler=scheduler,
-        start_epoch=start_epoch
+        start_epoch=start_epoch,
+        config=config
     )
 
     return accuracy

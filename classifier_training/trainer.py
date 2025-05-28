@@ -11,6 +11,7 @@ import os
 import pdb
 import shutil
 import time
+import json
 
 import torch
 import torch.nn.parallel
@@ -137,7 +138,8 @@ def run_training(
     loss_func,
     args,
     scheduler=None,
-    start_epoch=0
+    start_epoch=0,
+    config=None
     ):
 
     # Setup TrainingTracker object
@@ -156,6 +158,9 @@ def run_training(
             for arg in vars(args):
                 f.write("{}: {}\n".format(arg, getattr(args, arg)))
             f.write("=================\n")
+        
+        with open(args.logdir+"/config.json", 'w') as file:
+            json.dump(config, file)
 
     # The best validation accuracy so far
     val_acc_max = 0
@@ -242,7 +247,8 @@ def run_training(
         TT.make_key_fig(["avg_train_loss", "avg_valid_loss"], kwargs={"avg_train_loss": {"color": "blue", "label": "Training"}, "avg_valid_loss": {"color": "orange", "label": "Validation"}}, title="CrossEntropy loss")
         TT.make_key_fig(["acc_glob_unweighted"], title="Acc. (glob. unweighted)")
         TT.make_key_fig(["learning_rate"], title="Learning rate")
-
+        TT.to_json()
+        
         # Change to next learning rate value
         if scheduler is not None:
             if args.lrschedule == "reduce_on_plateau":
