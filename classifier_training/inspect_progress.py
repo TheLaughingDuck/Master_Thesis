@@ -32,6 +32,11 @@ def plot_train_val_from_eventfile(event_file=None, latest = True, print_values=F
             data[value.tag]['step'].append(float(summary.step))
             data[value.tag]['value'].append(float(value.simple_value))
 
+    print(data)
+
+    # Get some info from data
+    n_epochs = len(data["avg_train_loss"]["step"])
+
     fig, axs = plt.subplots(nrows=2)
     
     # Get loss weights
@@ -42,7 +47,11 @@ def plot_train_val_from_eventfile(event_file=None, latest = True, print_values=F
     # Train and val loss
     axs[0].set_title("Avg Training and validation loss")
     axs[0].plot(data["avg_train_loss"]["step"], data["avg_train_loss"]["value"], color="blue", label="Training")
-    axs[0].plot(data["avg_val_loss"]["step"], data["avg_val_loss"]["value"], color="orange", label="Validation")
+    axs[0].hlines([0], n_epochs-3, n_epochs, colors=["black"], linestyle="--")
+    try:
+        axs[0].plot(data["avg_val_loss"]["step"], data["avg_val_loss"]["value"], color="orange", label="Validation")
+    except:
+        print("No validation data yet")
     axs[0].legend()
 
     # Validation Accuracy
@@ -114,5 +123,29 @@ def plot_train_val_from_eventfile(event_file=None, latest = True, print_values=F
 # plot_train_val_from_eventfile(event_file="/local/data2/simjo484/Training_outputs/classifier_training/t2/runs/2025-03-18-08:22:28 (With 4-channel out-of-box BSF on T2 only)/events.out.tfevents.1742282554.kawasaki.ad.liu.se",
 #                               maintitle="Classifier with original BSF")
 
+# plot_train_val_from_eventfile(event_file="/local/data2/simjo484/Training_outputs/classifier_training/t2/runs/2025-03-19-07:21:07 (cosine_anneal lrschedule)/events.out.tfevents.1742365273.kawasaki.ad.liu.se",
+#                               maintitle="Last run (2025-03-19)")
+
+
+# plot_train_val_from_eventfile(event_file="/local/data2/simjo484/Training_outputs/classifier_training/t2/runs/2025-03-19-14:49:23 (Large reg_weight (1e-4), and warmup_cosine)/events.out.tfevents.1742392169.kawasaki.ad.liu.se",
+#                               maintitle="Warmup cosine")
+
+# plot_train_val_from_eventfile(event_file="/local/data2/simjo484/Training_outputs/classifier_training/t2/runs/2025-03-19-11:10:25 (Large reg_weight (1e-4), and cosine_anneal)/events.out.tfevents.1742379030.kawasaki.ad.liu.se",
+#                               maintitle="Cosine anneal")
+
+
 plot_train_val_from_eventfile()
+# %%
+
+
+event_file = "/local/data2/simjo484/Training_outputs/classifier_training/t2/runs/2025-03-20-22:17:35 (debug mode)/events.out.tfevents.1742505461.kawasaki.ad.liu.se"
+
+data = {}
+for summary in summary_iterator(event_file):
+    print(f"summary: {summary}")
+    for value in summary.summary.value:
+        if value.tag not in data:
+            data[value.tag] = {'step': [], 'value': []}
+        data[value.tag]['step'].append(float(summary.step))
+        data[value.tag]['value'].append(float(value.simple_value))
 # %%

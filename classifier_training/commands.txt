@@ -9,3 +9,113 @@ python /home/simjo484/master_thesis/Master_Thesis/classifier_training/main_class
 --val_every=5 \
 --save_checkpoint \
 --debug_mode=False
+
+# Run EXPERIMENT Training with main_classifier.py
+
+python /home/simjo484/master_thesis/Master_Thesis/classifier_training/main_classifier.py \
+--logdir=$(date "+%Y-%m-%d-%H:%M:%S") \
+--max_epochs=300 \
+--batch_size=3 \
+--workers=18 \
+--optim_lr=1e-5 \
+--val_every=5 \
+--save_checkpoint \
+--debug_mode=True
+
+
+# Run EXPERIMENT with 4-channel BSF
+
+python /home/simjo484/master_thesis/Master_Thesis/classifier_training/main_classifier.py \
+--logdir=$(date "+%Y-%m-%d-%H:%M:%S") \
+--max_epochs=300 \
+--batch_size=3 \
+--workers=18 \
+--optim_lr=1e-5 \
+--val_every=5 \
+--save_checkpoint \
+--debug_mode=False \
+--feature_extractor='/local/data2/simjo484/BrainSegFounder_models/BraTS/finetuned/finetuned_model_fold_4.pt' \
+--comment=""
+
+
+# Run EXPERIMENT with lots of dropout (only 200 epochs, and a different lr schedule: cosine anneal)
+
+python /home/simjo484/master_thesis/Master_Thesis/classifier_training/main_classifier.py \
+--logdir=$(date "+%Y-%m-%d-%H:%M:%S") \
+--max_epochs=200 \
+--batch_size=3 \
+--workers=18 \
+--optim_lr=1e-5 \
+--lrschedule="cosine_anneal" \
+--val_every=5 \
+--save_checkpoint \
+--debug_mode=False \
+--comment="cosine_anneal lrschedule"
+
+# RUN EXPERIMENT with larger reg_weight
+python /home/simjo484/master_thesis/Master_Thesis/classifier_training/main_classifier.py \
+--logdir=$(date "+%Y-%m-%d-%H:%M:%S") \
+--max_epochs=200 \
+--optim_lr=1e-5 \
+--lrschedule="warmup_cosine" \
+--debug_mode=False \
+--reg_weight=1e-4 \
+--comment="Large reg_weight (1e-4), and warmup_cosine"
+
+
+# Run EXPERIMENT with combined FE and Classifier
+
+python /home/simjo484/master_thesis/Master_Thesis/classifier_training/main_classifier.py \
+--logdir=$(date "+%Y-%m-%d-%H:%M:%S") \
+--max_epochs=200 \
+--optim_lr=1e-5 \
+--lrschedule="warmup_cosine" \
+--debug_mode=False \
+--reg_weight=1e-4 \
+--comment="Training FE and Classifier"
+
+
+# Run EXPERIMENT with combined FE and Classifier
+
+python /home/simjo484/master_thesis/Master_Thesis/classifier_training/main_classifier.py \
+--logdir=$(date "+%Y-%m-%d-%H:%M:%S") \
+--max_epochs=5 \
+--optim_lr=1e-5 \
+--val_every=1 \
+--lrschedule="warmup_cosine" \
+--debug_mode=True \
+--reg_weight=1e-5 \
+--comment="TESTING LOL"
+
+
+# RUN EXPERIMENT with a little bit of freezing, and updated model def, and no feature_extractor.eval()
+
+python /home/simjo484/master_thesis/Master_Thesis/classifier_training/main_classifier.py \
+--logdir=$(date "+%Y-%m-%d-%H:%M:%S") \
+--max_epochs=300 \
+--batch_size=4 \
+--lrschedule="reduce_on_plateau" \
+--optim_lr=1e-5 \
+--val_every=5 \
+--debug_mode=False \
+--reg_weight=1e-5 \
+--freeze_blocks=10 \
+--data_aug_prob=0.1 \
+--warmup_epochs=50 \
+--comment="reduce_on_plateau, reg_weight 0"
+
+
+
+# RUN EXPERIMENT, just pure testing
+
+python /home/simjo484/master_thesis/Master_Thesis/classifier_training/main_classifier.py \
+--logdir=$(date "+%Y-%m-%d-%H:%M:%S") \
+--max_epochs=200 \
+--batch_size=3 \
+--lrschedule="cosine_anneal" \
+--optim_lr=1e-4 \
+--val_every=5 \
+--debug_mode=False \
+--reg_weight=1e-4 \
+--warmup_epochs=50 \
+--comment="T1GD and T2"

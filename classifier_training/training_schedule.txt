@@ -1,0 +1,15 @@
+The purpose of this file is to structure up a "queue" of commands that I want to run
+in order to train the classifier with various hyperparam configurations.
+
+# RUN EXPERIMENT with larger reg_weight
+# I want to run this training to see if a larger reg_weight (1e-4 rather than 1e-5 makes an improvement)
+# RESULT: 
+
+python /home/simjo484/master_thesis/Master_Thesis/classifier_training/main_classifier.py \
+--logdir=$(date "+%Y-%m-%d-%H:%M:%S") \
+--max_epochs=200 \
+--optim_lr=1e-5 \
+--lrschedule="cosine_anneal" \
+--debug_mode=False \
+--reg_weight=1e-4
+--comment="large reg_weight 1e-4"
