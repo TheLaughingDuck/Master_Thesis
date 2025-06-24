@@ -21,7 +21,7 @@ so that the same T2W file is fed into the model during fine-tuning.
 
 import json
 
-exit() # To stop accidentally running this script
+#exit() # To stop accidentally running this script
 
 # Load the provided JSON file
 file_path = 'brats21_folds.json'  # Replace with your file path
@@ -33,10 +33,12 @@ with open(file_path, 'r') as file:
 for entry in data['training']:
     entry['image'] = [entry["image"][1], entry["image"][1], entry["image"][2], entry["image"][2]] #entry['image'][2:]
 
-# Save the modified data back to a new JSON file
-modified_file_path = 'brats21_folds_T1-GD_and_T1_modality.json'  # Replace with your desired file path
-with open(modified_file_path, 'w') as file:
-    json.dump(data, file)
+print(type(data))
+
+# # Save the modified data back to a new JSON file
+# modified_file_path = 'brats21_folds_T1-GD_and_T1_modality.json'  # Replace with your desired file path
+# with open(modified_file_path, 'w') as file:
+#     json.dump(data, file)
 
 #
 # %%
