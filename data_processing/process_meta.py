@@ -202,7 +202,7 @@ meta = meta_seq_dummies
 # See top of this file (META PROCESSING SETTINGS)
 if drop_duplicates:
     observations = meta.drop_duplicates(subset=["subjetID", "session_name", "seq_type"])
-    observations = observations.pivot(index=["subjetID", "session_name", "diagnosis"], 
+    observations = observations.pivot(index=["subjetID", "session_name", "diagnosis", "gender", "tumor_location"], 
                             values="found_filename",
                             columns="seq_type")
     observations = observations.reset_index()
@@ -211,7 +211,7 @@ if drop_duplicates:
 else:
     meta["type_counter"] = meta.groupby(["subjetID", "session_name", "seq_type", "diagnosis"]).cumcount()+1
 
-    observations = meta.pivot(index=["subjetID", "session_name", "diagnosis", "type_counter"], 
+    observations = meta.pivot(index=["subjetID", "session_name", "diagnosis", "type_counter", "gender", "tumor_location"], 
                             values="found_filename",
                             columns="seq_type")
     observations = observations.reset_index()
@@ -249,7 +249,7 @@ for i in range(observations.shape[0]):
     observations.loc[i, "label"] = label
 
 # Filter out unused diagnoses
-observations = observations[observations["label"] != "remove"]
+#observations = observations[observations["label"] != "remove"]
 
 
 # SAVE OBSERVATION DATA (with single files)
@@ -291,6 +291,10 @@ patients = observations.groupby("subjetID")["stratify_key"].agg(lambda x: x.valu
 
 #print(patients.head())
 
+observations.to_csv("/home/simjo484/master_thesis/Master_Thesis/visualization/observations.csv")
+
+# Break
+1+"a"
 
 # Perform train/test split
 # Create a splitter for the data, train proportion 80%
