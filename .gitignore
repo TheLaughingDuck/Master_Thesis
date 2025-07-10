@@ -169,3 +169,20 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Directories
+test_TotalSegmentator
+test_BrainSegFounder
+data_utilities
+deprecated
+experimental_code
+ViT_lab
+
+# Specific local only files
+data_processing/diagnoses.txt
+classifier_training/t2_training_paths.pkl
+classifier_training/t2_valid_paths.pkl
+data_processing/test.py
+data_processing/Notes_annotation.py
+
+BSF_finetuning/jsons/

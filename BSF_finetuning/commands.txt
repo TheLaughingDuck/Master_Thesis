@@ -5,7 +5,7 @@ Commands for training that can be run in the terminal
 # There are 20 cores, so we set the number of workers to 18, so that it does not freeze up, and may do other computations in the mean time.
 # This was based on https://github.com/lab-smile/BrainSegFounder/blob/main/downstream/BraTS/finetuning/launch.sh
 
-python /local/data2/simjo484/BrainSegFounder_custom_finetuning/downstream/BraTS/finetuning/main_FinetuningSwinUNETR_4Channels.py \
+python /home/simjo484/master_thesis/Master_Thesis/BSF_finetuning/main_FinetuningSwinUNETR_4Channels.py \
 --depths='2 2 2 2' \
 --num_heads='3 6 12 24' \
 --roi_x=128 \
@@ -13,6 +13,114 @@ python /local/data2/simjo484/BrainSegFounder_custom_finetuning/downstream/BraTS/
 --roi_z=128 \
 --noamp \
 --logdir=$(date "+%Y-%m-%d-%H:%M:%S") \
+--batch_size=10 \
+--in_channels=4 \
+--workers=18 \
+--optim_lr=1e-4 \
+--val_every=1 \
+--use_checkpoint \
+--save_checkpoint \
+--pretrained_model_name='model_bestValRMSE-fold4.pt' \
+--fold=4 \
+--max_epochs=120 \
+--json_list='/home/simjo484/master_thesis/Master_Thesis/BSF_finetuning/jsons/brats21_folds_T2_modality.json' \
+--data_dir='/local/data2/simjo484/BRATScommon/BRATS21/' \
+--resume_ckpt \
+--freeze_encoder
+
+ \
+--checkpoint='/local/data2/simjo484/BrainSegFounder_custom_finetuning/downstream/BraTS/finetuning/runs/2025-03-04-12:24:35/events.out.tfevents.1741087481.kawasaki.ad.liu.se'
+
+
+
+# TESTING runs kawasaki
+python /home/simjo484/master_thesis/Master_Thesis/BSF_finetuning/main_FinetuningSwinUNETR_4Channels.py \
+--depths='2 2 2 2' \
+--num_heads='3 6 12 24' \
+--roi_x=128 \
+--roi_y=128 \
+--roi_z=128 \
+--noamp \
+--logdir='/local/data2/simjo484/Training_outputs/BSF_finetuning/runs/'$(date "+%Y-%m-%d-%H:%M:%S") \
+--batch_size=2 \
+--in_channels=4 \
+--workers=18 \
+--optim_lr=1e-4 \
+--val_every=1 \
+--use_checkpoint \
+--save_checkpoint \
+--pretrained_model_name='model_bestValRMSE-fold4.pt' \
+--fold=4 \
+--max_epochs=120 \
+--json_list='/home/simjo484/master_thesis/Master_Thesis/BSF_finetuning/jsons/brats21_folds_T1-GD_and_T2_modality.json' \
+--data_dir='/local/data2/simjo484/BRATScommon/BRATS21/' \
+--resume_ckpt \
+--freeze_encoder
+
+
+# TESTING runs lnx00193
+python /home/simjo484/master_thesis/Master_Thesis/BSF_finetuning/main_FinetuningSwinUNETR_4Channels.py \
+--depths='2 2 2 2' \
+--num_heads='3 6 12 24' \
+--roi_x=128 \
+--roi_y=128 \
+--roi_z=128 \
+--noamp \
+--logdir='/local/data3/simjo484/Training_outputs/BSF_finetuning/runs/$(date "+%Y-%m-%d-%H:%M:%S")' \
+--batch_size=2 \
+--in_channels=4 \
+--workers=10 \
+--optim_lr=1e-4 \
+--val_every=1 \
+--use_checkpoint \
+--save_checkpoint \
+--pretrained_dir='/local/data3/simjo484/' \
+--pretrained_model_name='model_bestValRMSE-fold4.pt' \
+--fold=4 \
+--max_epochs=120 \
+--json_list='/home/simjo484/master_thesis/Master_Thesis/BSF_finetuning/jsons/brats21_folds_T2_modality.json' \
+--data_dir='/local/data3/simjo484/data/TrainingData/' \
+--resume_ckpt \
+--freeze_encoder
+
+
+
+######### Start fine-tuning BSF on T1GD and T2 BraTS images #########
+
+python /home/simjo484/master_thesis/Master_Thesis/BSF_finetuning/main_FinetuningSwinUNETR_4Channels.py \
+--depths='2 2 2 2' \
+--num_heads='3 6 12 24' \
+--roi_x=128 \
+--roi_y=128 \
+--roi_z=128 \
+--noamp \
+--logdir=/local/data3/simjo484/Training_outputs/BSF_finetuning/runs/$(date "+%Y-%m-%d-%H:%M:%S") \
+--batch_size=2 \
+--in_channels=4 \
+--workers=10 \
+--optim_lr=1e-4 \
+--val_every=5 \
+--use_checkpoint \
+--save_checkpoint \
+--pretrained_dir='/local/data3/simjo484/' \
+--pretrained_model_name='model_bestValRMSE-fold4.pt' \
+--fold=4 \
+--max_epochs=120 \
+--json_list='/home/simjo484/master_thesis/Master_Thesis/BSF_finetuning/jsons/brats21_folds_T1-GD_and_T2_modality.json' \
+--data_dir='/local/data3/simjo484/data/TrainingData/' \
+--resume_ckpt
+
+
+######### Start fine-tuning BSF on T1GD images (on kawasaki) #########
+
+python /home/simjo484/master_thesis/Master_Thesis/BSF_finetuning/main_FinetuningSwinUNETR_4Channels.py \
+--depths='2 2 2 2' \
+--num_heads='3 6 12 24' \
+--roi_x=128 \
+--roi_y=128 \
+--roi_z=128 \
+--noamp \
+--logdir=/local/data2/simjo484/Training_outputs/BSF_finetuning/runs_t1gd/$(date "+%Y-%m-%d-%H:%M:%S") \
 --batch_size=2 \
 --in_channels=4 \
 --workers=18 \
@@ -20,16 +128,13 @@ python /local/data2/simjo484/BrainSegFounder_custom_finetuning/downstream/BraTS/
 --val_every=5 \
 --use_checkpoint \
 --save_checkpoint \
+--pretrained_dir='/local/data2/simjo484/BrainSegFounder_models/BraTS/ssl' \
 --pretrained_model_name='model_bestValRMSE-fold4.pt' \
 --fold=4 \
 --max_epochs=120 \
---json_list='/local/data2/simjo484/BrainSegFounder_custom_finetuning/downstream/BraTS/finetuning/jsons/brats21_folds_T2_modality.json' \
+--json_list='/home/simjo484/master_thesis/Master_Thesis/BSF_finetuning/jsons/brats21_folds_T1-GD_modality.json' \
 --data_dir='/local/data2/simjo484/BRATScommon/BRATS21/' \
---resume_ckpt \
-
---checkpoint='/local/data2/simjo484/BrainSegFounder_custom_finetuning/downstream/BraTS/finetuning/runs/2025-03-04-12:24:35/events.out.tfevents.1741087481.kawasaki.ad.liu.se'
-
-
+--resume_ckpt
 
 
 # OBSERVATIONS

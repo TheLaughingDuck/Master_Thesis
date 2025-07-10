@@ -37,7 +37,7 @@ import torch.nn.parallel # type: ignore
 import torch.utils.data.distributed # type: ignore
 from optimizers.lr_scheduler import LinearWarmupCosineAnnealingLR
 from trainer import run_training
-from utils.data_utils import get_loader
+from bsf_data_utils import get_loader
 
 from monai.inferers import sliding_window_inference # type: ignore
 from monai.losses import DiceLoss # type: ignore
@@ -115,7 +115,9 @@ parser.add_argument("--squared_dice", action="store_true", help="use squared Dic
 def main():
     args = parser.parse_args()
     args.amp = not args.noamp
-    args.logdir = "/local/data2/simjo484/BrainSegFounder_custom_finetuning/downstream/BraTS/finetuning/runs/" + args.logdir   #"./runs/" + args.logdir
+    #args.logdir = "/local/data2/simjo484/BrainSegFounder_custom_finetuning/downstream/BraTS/finetuning/runs/" + args.logdir   #"./runs/" + args.logdir
+    #args.logdir = "/local/data2/simjo484/Training_outputs/BSF_finetuning/runs/" + args.logdir   #"./runs/" + args.logdir
+    
     if args.distributed:
         args.ngpus_per_node = torch.cuda.device_count()
         print("Found total gpus", args.ngpus_per_node)

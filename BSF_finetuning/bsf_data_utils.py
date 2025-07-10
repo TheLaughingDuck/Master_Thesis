@@ -87,8 +87,14 @@ def datafold_read(datalist, basedir, fold=0, key="training"):
             val.append(d)
         else:
             tr.append(d)
+    
 
-    #print(f"The validation data has length {len(val)}")
+    # Reduce the number of obs, because we run out of memory
+    #tr = tr[0:10]
+    #val = val[0:10]
+
+    print(f"The train data has length {len(tr)}")
+    print(f"The validation data has length {len(val)}")
     return tr, val
 
 def read_data(datalist, basedir):
@@ -140,6 +146,18 @@ def get_loader(args):
         [
             transforms.LoadImaged(keys=["image", "label"]),
             transforms.ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
+
+            # Simon: Including this so the validation transformer is the same. Also need to redo the trainer script so it calculates val loss and not val acc now.
+            transforms.CropForegroundd(
+                keys=["image", "label"], source_key="image", k_divisible=[args.roi_x, args.roi_y, args.roi_z]
+            ),
+
+            # SEEMS like it is not random if random_size=False
+            #https://docs.monai.io/en/stable/transforms.html#randspatialcropd
+            transforms.RandSpatialCropd(
+                keys=["image", "label"], roi_size=[args.roi_x, args.roi_y, args.roi_z], random_size=False
+            ),
+            
             transforms.NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
             transforms.ToTensord(keys=["image", "label"]),
         ]

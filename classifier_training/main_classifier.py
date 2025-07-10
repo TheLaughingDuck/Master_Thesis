@@ -16,39 +16,27 @@ import torch.nn as nn
 import torch.nn.parallel
 import torch.utils.data.distributed
 from trainer import run_training
-from utils.data_utils import get_loader
+#from utils.data_utils import get_loader
+
+from matplotlib import pyplot as plt
+import re
 
 import os
 os.chdir("/home/simjo484/master_thesis/Master_Thesis")
 from utils import *
 
-parser = argparse.ArgumentParser(description="Classifier pipeline")
+from utils.parse_arguments import custom_parser
 
-# Arguments definetly used by the Classifier
-parser.add_argument("--workers", default=1, type=int, help="number of workers")
-parser.add_argument("--logdir", default=".", type=str, help="directory to save the tensorboard logs")
-parser.add_argument("--batch_size", default=1, type=int, help="Number of observations per batch")
-parser.add_argument("--optim_lr", default=1e-3, type=float, help="optimization learning rate")
-parser.add_argument("--val_every", default=100, type=int, help="validation frequency")
-parser.add_argument("--pp_device", default="cpu", type=str, help="Preprocessing device")
-parser.add_argument("--cl_device", default="cuda", type=str, help="Classifier device")
-parser.add_argument("--max_epochs", default=300, type=int, help="max number of training epochs")
-parser.add_argument("--save_checkpoint", action="store_true", help="save checkpoint during training")
-parser.add_argument("--debug_mode", default="False", type=str, help="Set the pipeline into debug mode: only a few observations are used to achieve massive speedup.")
+# The config dict is here just acting as a way to save some information about the training, for example the number of trainable parameters.
+config = {
 
+}
 
 def main():
-    args = parser.parse_args()
-    args.logdir = "/local/data2/simjo484/Training_outputs/classifier_training/t2/runs" + args.logdir
-    args.test_mode = False
-    if args.debug_mode == "False": args.debug_mode = False
-    elif args.debug_mode == "True": args.debug_mode = True
-    else: raise ValueError("--debug_mode argument is either \"True\" or \"False\"")
-
-    np.set_printoptions(formatter={"float": "{: 0.3f}".format}, suppress=True) # What does this do?
-
-    # Get data loaders
-    loader = get_loader(args)
+    #### Parse the arguments
+    args = custom_parser(terminal=True)
+    
+    #np.set_printoptions(formatter={"float": "{: 0.3f}".format}, suppress=True) # What does this do?
 
 
     # Should probably enable these when I want to be able to checkpoint the classifier
@@ -56,30 +44,30 @@ def main():
     # model_name = args.pretrained_model_name
     # pretrained_pth = os.path.join(pretrained_dir, model_name)
 
-    # Define classifier
-    model = Classifier().to(args.cl_device)
-    #model = Detective_Classifier().to(args.cl_device)
-    print(f"\nClassifier uses {args.cl_device} device.")
 
-    # Define Feature Extractor
-    feature_extractor = EmbedSwinUNETR(
-        #img_size=(128, 128, 128),
-        #in_channels=4,
-        #out_channels=3,
-        #feature_size=48,
-        #use_checkpoint=True # "use gradient checkpointing to save memory"
-    )
-    feature_extractor.to(args.cl_device)
-    feature_extractor.load_state_dict(torch.load("/local/data2/simjo484/BrainSegFounder_custom_finetuning/downstream/BraTS/finetuning/runs/2025-03-05-08:07:48/model_final.pt",
-                                        map_location=args.pp_device)["state_dict"])
-    feature_extractor.eval(); print("Set Feature Extractor to eval mode.")
-    print(f"Feature Extractor using {args.cl_device} device.")
+    ####################################
+    ## V ##   MODEL DEFINITION   ## V ##
+    ####################################
 
+    #model = Combined_model(feature_extractor_weights="/local/data2/simjo484/Training_outputs/BSF_finetuning/runs/2025-03-27-13:20:53/model_final.pt") #args.feature_extractor)
+    model = Combined_model(feature_extractor_weights="/local/data2/simjo484/Training_outputs/BSF_finetuning/runs_t1gd_and_t2/2025-03-28-23:14:58/model_final.pt") #args.feature_extractor)
+    model.freeze(args)#blocks=args.freeze_blocks)
+
+    config["FE_parameters"] = sum(p.numel() for p in model.feature_extractor.parameters() if p.requires_grad)
+    config["classifier_parameters"] = sum(p.numel() for p in model.classifier.parameters() if p.requires_grad)
+    ####################################
+    ## ^ ##   MODEL DEFINITION   ## ^ ##
+    ####################################
+
+    #### ARGUMENT PRINTOUT
+    print("\n\n##############################################\n")
     pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print("Total parameters count:", pytorch_total_params)
-
+    print(f"Total parameters count: {format(pytorch_total_params, ",").replace(",", ".")} \N{Abacus} \N{Flexed Biceps}")
+    print(f"Model uses {args.cl_device} device.")
     print("Batch size is:", args.batch_size, ". Max epochs:", args.max_epochs)
+    print("\n##############################################\n\n")
 
+    # Used for checkpointing
     best_acc = 0
     start_epoch = 0
 
@@ -100,33 +88,78 @@ def main():
     #         best_acc = checkpoint["best_acc"]
     #     print("=> loaded checkpoint '{}' (epoch {}) (bestacc {})".format(args.checkpoint, start_epoch, best_acc))
 
-    
-    # 
-    # if args.optim_name == "adam":
-    #     optimizer = torch.optim.Adam(model.parameters(), lr=args.optim_lr, weight_decay=args.reg_weight)
-    # elif args.optim_name == "adamw":
-    #     optimizer = torch.optim.AdamW(model.parameters(), lr=args.optim_lr, weight_decay=args.reg_weight)
-    # elif args.optim_name == "sgd":
-    #     optimizer = torch.optim.SGD(
-    #         model.parameters(), lr=args.optim_lr, momentum=args.momentum, nesterov=True, weight_decay=args.reg_weight
-    #     )
-    # else:
-    #     raise ValueError("Unsupported Optimization Procedure: " + str(args.optim_name))
-    
-    loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=args.optim_lr)
 
+
+    ###########################################################
+    ## V ##   DEFINE OPTIMIZER AND SCHEDULER AND LOSS   ## V ##
+    ###########################################################
+    
+    #### OPTIMIZER
+    parameters = filter(lambda p: p.requires_grad, model.parameters())
+    if args.optim_name == "adam":
+        optimizer = torch.optim.Adam(parameters, lr=args.optim_lr, weight_decay=args.reg_weight)
+    elif args.optim_name == "adamw":
+        optimizer = torch.optim.AdamW(parameters, lr=args.optim_lr, weight_decay=args.reg_weight)
+    elif args.optim_name == "sgd":
+        optimizer = torch.optim.SGD(parameters, lr=args.optim_lr, momentum=args.momentum, nesterov=True, weight_decay=args.reg_weight
+        )
+    else:
+        raise ValueError("Unsupported Optimization Procedure: " + str(args.optim_name))
+
+
+    #### Learning Rate SCHEDULER
+    if args.lrschedule == "warmup_cosine":
+        scheduler = LinearWarmupCosineAnnealingLR(
+            optimizer, warmup_epochs=args.warmup_epochs, max_epochs=args.max_epochs
+        )
+        print("\nUsing Warmup cosine learning rate")
+    elif args.lrschedule == "cosine_anneal":
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.max_epochs)
+        if args.checkpoint is not None:
+            scheduler.step(epoch=start_epoch)
+    elif args.lrschedule == "reduce_on_plateau":
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, factor=0.9)
+        print("Using Reduce on Plateau scheduler")
+        
+    elif args.lrschedule == "constant":
+        scheduler = torch.optim.lr_scheduler.ConstantLR(optimizer, factor=1, total_iters=0)
+        print(f"\n\nUsing constant learning rate {args.optim_lr}.\n\n")
+    else:
+        scheduler = None
+    
+    
+    #### DATA LOADER
+    if args.T2: seq_types = "T2W"
+    elif args.T1GD: seq_types = "T1W-GD"
+    elif args.T1GD_T2: seq_types = "T1W-GD_T2W"
+    else:
+        raise ValueError("Incorrect sequence type specification.")
+
+    loader, loss_weights = get_loader(args, seq_types) #Classes are Gli (0), Epe (1), Med (2).
+    print(f"\nThe loss weights are: {loss_weights}\n")
+    config["loss_weights"] = loss_weights.tolist()
+
+    #### LOSS FUNCTION
+    loss_fn = nn.CrossEntropyLoss(reduction="sum", weight=loss_weights)
+
+    ###########################################################
+    ## ^ ##   DEFINE OPTIMIZER AND SCHEDULER AND LOSS   ## ^ ##
+    ###########################################################
+    
+
+    #### RUN Training Loop
     accuracy = run_training(
         model=model,
         train_loader=loader[0],
         val_loader=loader[1],
         optimizer=optimizer,
         loss_func=loss_fn,
-        #acc_func=dice_acc,
         args=args,
+        scheduler=scheduler,
         start_epoch=start_epoch,
-        feature_extractor=feature_extractor
+        config=config
     )
+
     return accuracy
 
 

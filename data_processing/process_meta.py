@@ -202,7 +202,7 @@ meta = meta_seq_dummies
 # See top of this file (META PROCESSING SETTINGS)
 if drop_duplicates:
     observations = meta.drop_duplicates(subset=["subjetID", "session_name", "seq_type"])
-    observations = observations.pivot(index=["subjetID", "session_name", "diagnosis"], 
+    observations = observations.pivot(index=["subjetID", "session_name", "diagnosis", "gender", "tumor_location"], 
                             values="found_filename",
                             columns="seq_type")
     observations = observations.reset_index()
@@ -211,7 +211,7 @@ if drop_duplicates:
 else:
     meta["type_counter"] = meta.groupby(["subjetID", "session_name", "seq_type", "diagnosis"]).cumcount()+1
 
-    observations = meta.pivot(index=["subjetID", "session_name", "diagnosis", "type_counter"], 
+    observations = meta.pivot(index=["subjetID", "session_name", "diagnosis", "type_counter", "gender", "tumor_location"], 
                             values="found_filename",
                             columns="seq_type")
     observations = observations.reset_index()
@@ -249,7 +249,7 @@ for i in range(observations.shape[0]):
     observations.loc[i, "label"] = label
 
 # Filter out unused diagnoses
-observations = observations[observations["label"] != "remove"]
+#observations = observations[observations["label"] != "remove"]
 
 
 # SAVE OBSERVATION DATA (with single files)
@@ -262,6 +262,7 @@ print("Saved observation data (including single files) to final_observations.pkl
 
 # %%
 # SPLIT OBSERVATIONS INTO TRAIN AND TEST DATA
+#################################################################################################
 # Make a list of all patient ids
 patients = observations.drop_duplicates(subset=["subjetID"])["subjetID"].tolist()
 
@@ -290,6 +291,10 @@ patients = observations.groupby("subjetID")["stratify_key"].agg(lambda x: x.valu
 
 #print(patients.head())
 
+observations.to_csv("/home/simjo484/master_thesis/Master_Thesis/visualization/observations.csv")
+
+# Break
+1+"a"
 
 # Perform train/test split
 # Create a splitter for the data, train proportion 80%
@@ -310,8 +315,31 @@ train_df = observations[observations["subjetID"].isin(train_patients)]
 valid_df = observations[observations["subjetID"].isin(valid_patients)]
 test_df = observations[observations["subjetID"].isin(test_patients)]
 
-# Sanity checks: Verify that train and test patients don't overlap
 
+#################################################################################################
+# Training set data leakage sanity check
+train_count, val_count, test_count = 0, 0, 0
+for i in train_df["subjetID"].tolist():
+    if i in train_df["subjetID"].tolist(): train_count += 1
+    if i in valid_df["subjetID"].tolist(): val_count += 1
+    if i in test_df["subjetID"].tolist(): test_count += 1
+print(f"Training leakage counts:\n\tTrain:{train_count}\n\tValidation:{val_count}\n\tTest:{test_count}")
+
+# Validation set data leakage sanity check
+train_count, val_count, test_count = 0, 0, 0
+for i in valid_df["subjetID"].tolist():
+    if i in train_df["subjetID"].tolist(): train_count += 1
+    if i in valid_df["subjetID"].tolist(): val_count += 1
+    if i in test_df["subjetID"].tolist(): test_count += 1
+print(f"Validation leakage counts:\n\tTrain:{train_count}\n\tValidation:{val_count}\n\tTest:{test_count}")
+
+# Test set data leakage sanity check
+train_count, val_count, test_count = 0, 0, 0
+for i in test_df["subjetID"].tolist():
+    if i in train_df["subjetID"].tolist(): train_count += 1
+    if i in valid_df["subjetID"].tolist(): val_count += 1
+    if i in test_df["subjetID"].tolist(): test_count += 1
+print(f"Test leakage counts:\n\tTrain:{train_count}\n\tValidation:{val_count}\n\tTest:{test_count}")
 
 
 # %%

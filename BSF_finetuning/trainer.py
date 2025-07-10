@@ -27,9 +27,13 @@ import torch.nn.parallel
 import torch.utils.data.distributed
 from tensorboardX import SummaryWriter
 from torch.cuda.amp import GradScaler, autocast
-from utils.utils import AverageMeter, distributed_all_gather
+from utils import AverageMeter, distributed_all_gather
 
 from monai.data import decollate_batch
+
+# My custom tracker
+from misc_utils import TrainingTracker
+from itertools import islice
 
 
 def train_epoch(model, loader, optimizer, scaler, epoch, loss_func, args):
@@ -37,6 +41,7 @@ def train_epoch(model, loader, optimizer, scaler, epoch, loss_func, args):
     start_time = time.time()
     run_loss = AverageMeter()
     for idx, batch_data in enumerate(loader):
+    #for idx, batch_data in islice(enumerate(loader), 5):
         if isinstance(batch_data, list):
             data, target = batch_data
         else:
@@ -45,6 +50,7 @@ def train_epoch(model, loader, optimizer, scaler, epoch, loss_func, args):
         for param in model.parameters():
             param.grad = None
         with autocast(enabled=args.amp):
+            #print(f"DATA SHAPE {data.shape}")
             logits = model(data)
             loss = loss_func(logits, target)
         if args.amp:
@@ -73,53 +79,71 @@ def train_epoch(model, loader, optimizer, scaler, epoch, loss_func, args):
     return run_loss.avg
 
 
-def val_epoch(model, loader, epoch, acc_func, args, model_inferer=None, post_sigmoid=None, post_pred=None):
+def val_epoch(model, loader, epoch, acc_func, args, model_inferer=None, post_sigmoid=None, post_pred=None, loss_func=None):
     #print('Validation begin')
     model.eval()
     start_time = time.time()
-    run_acc = AverageMeter()
+    #run_acc = AverageMeter() #Simon
+    run_loss = AverageMeter() #Simon
     #print('Validation loader length', len(loader))
     with torch.no_grad():
         # print('after torch.no_grad()')
         for idx, batch_data in enumerate(loader):
+        #for idx, batch_data in islice(enumerate(loader), 5):
             # print('Validation idx', idx)
             data, target = batch_data["image"], batch_data["label"]
             data, target = data.cuda(args.rank), target.cuda(args.rank)
             with autocast(enabled=args.amp):
-                logits = model_inferer(data)
-            val_labels_list = decollate_batch(target)
-            val_outputs_list = decollate_batch(logits)
-            val_output_convert = [post_pred(post_sigmoid(val_pred_tensor)) for val_pred_tensor in val_outputs_list]
-            acc_func.reset()
-            acc_func(y_pred=val_output_convert, y=val_labels_list)
-            acc, not_nans = acc_func.aggregate()
-            acc = acc.cuda(args.rank)
-            if args.distributed:
-                acc_list, not_nans_list = distributed_all_gather(
-                    [acc, not_nans], out_numpy=True, is_valid=idx < loader.sampler.valid_length
-                )
-                for al, nl in zip(acc_list, not_nans_list):
-                    run_acc.update(al, n=nl)
-            else:
-                run_acc.update(acc.cpu().numpy(), n=not_nans.cpu().numpy())
+                #logits = model_inferer(data) #Simon
+                
+                # Alternative a la Simon
+                #print(f"DATA SHAPE {data.shape}")
+                alt_logits = model(data)
+                loss = loss_func(alt_logits, target)
+            
+            #### Commented out this, in order to calculate val loss and not val acc. It's messy to do both, because they each a separate validation data loader. The loss requires the same dims as train observations (128^3), and val acc requires same as original images (24*240*155)
+            # val_labels_list = decollate_batch(target)
+            # val_outputs_list = decollate_batch(logits)
+            # val_output_convert = [post_pred(post_sigmoid(val_pred_tensor)) for val_pred_tensor in val_outputs_list]
+            # acc_func.reset()
+            # acc_func(y_pred=val_output_convert, y=val_labels_list)
+            # acc, not_nans = acc_func.aggregate()
+            # acc = acc.cuda(args.rank)
+            # if args.distributed:
+            #     acc_list, not_nans_list = distributed_all_gather(
+            #         [acc, not_nans], out_numpy=True, is_valid=idx < loader.sampler.valid_length
+            #     )
+            #     for al, nl in zip(acc_list, not_nans_list):
+            #         run_acc.update(al, n=nl)
+            # else:
+            #     run_acc.update(acc.cpu().numpy(), n=not_nans.cpu().numpy())
+            #     run_loss.update(loss.item(), n=args.batch_size) # Simon
+            run_loss.update(loss.item(), n=args.batch_size) # Simon
 
-            if args.rank == 0:
-                Dice_TC = run_acc.avg[0]
-                Dice_WT = run_acc.avg[1]
-                Dice_ET = run_acc.avg[2]
-                print(
+            # if args.rank == 0:
+            #     Dice_TC = run_acc.avg[0]
+            #     Dice_WT = run_acc.avg[1]
+            #     Dice_ET = run_acc.avg[2]
+            #     print(
+            #         "Val {}/{} {}/{}".format(epoch, args.max_epochs, idx, len(loader)),
+            #         ", Dice_TC:",
+            #         Dice_TC,
+            #         ", Dice_WT:",
+            #         Dice_WT,
+            #         ", Dice_ET:",
+            #         Dice_ET,
+            #         ", time {:.2f}s".format(time.time() - start_time),
+            #     )
+            print(
                     "Val {}/{} {}/{}".format(epoch, args.max_epochs, idx, len(loader)),
-                    ", Dice_TC:",
-                    Dice_TC,
-                    ", Dice_WT:",
-                    Dice_WT,
-                    ", Dice_ET:",
-                    Dice_ET,
+                    ", Val loss:", run_loss.avg,
                     ", time {:.2f}s".format(time.time() - start_time),
                 )
             start_time = time.time()
 
-    return run_acc.avg
+    #return run_acc.avg
+    #return run_acc.avg, run_loss.avg # Simon
+    return run_loss.avg
 
 
 def save_checkpoint(model, epoch, args, filename="model.pt", best_acc=0, optimizer=None, scheduler=None):
@@ -149,6 +173,15 @@ def run_training(
     post_pred=None,
     semantic_classes=None,
 ):
+    
+    # Setup TrainingTracker object
+    TT = TrainingTracker(args)
+    # Create the metrics
+    TT.update_epoch({"train_loss": {"step":[], "value":[]}})
+    TT.update_epoch({"valid_loss": {"step":[], "value":[]}})
+    #TT.update_epoch({"Mean_Val_Dice": {"step":[], "value":[]}})
+    TT.update_epoch({"learning_rate": {"step":[], "value":[]}})
+
     writer = None
     if args.logdir is not None and args.rank == 0:
         writer = SummaryWriter(log_dir=args.logdir)
@@ -175,6 +208,7 @@ def run_training(
             )
         if args.rank == 0 and writer is not None:
             writer.add_scalar("train_loss", train_loss, epoch)
+            TT.update_epoch({"train_loss": {"step": [epoch], "value":[float(train_loss)]}})
         b_new_best = False
         if (epoch + 1) % args.val_every == 0:
             print('Validation')
@@ -182,7 +216,8 @@ def run_training(
                 torch.distributed.barrier()
             epoch_time = time.time()
 
-            val_acc = val_epoch(
+            #val_acc, val_loss = val_epoch(
+            val_loss = val_epoch(
                 model,
                 val_loader,
                 epoch=epoch,
@@ -191,45 +226,60 @@ def run_training(
                 args=args,
                 post_sigmoid=post_sigmoid,
                 post_pred=post_pred,
+                loss_func=loss_func
             )
 
             if args.rank == 0:
-                Dice_TC = val_acc[0]
-                Dice_WT = val_acc[1]
-                Dice_ET = val_acc[2]
-                print(
-                    "Final validation stats {}/{}".format(epoch, args.max_epochs - 1),
-                    ", Dice_TC:",
-                    Dice_TC,
-                    ", Dice_WT:",
-                    Dice_WT,
-                    ", Dice_ET:",
-                    Dice_ET,
-                    ", time {:.2f}s".format(time.time() - epoch_time),
-                )
+                #### Commented out for the valid loss instead
+                # Dice_TC = val_acc[0]
+                # Dice_WT = val_acc[1]
+                # Dice_ET = val_acc[2]
+                # print(
+                #     "Final validation stats {}/{}".format(epoch, args.max_epochs - 1),
+                #     ", Dice_TC:",
+                #     Dice_TC,
+                #     ", Dice_WT:",
+                #     Dice_WT,
+                #     ", Dice_ET:",
+                #     Dice_ET,
+                #     ", time {:.2f}s".format(time.time() - epoch_time),
+                # )
 
                 if writer is not None:
                     #print(f"\nval_acc is currently: {val_acc}\n")
-                    mean = np.mean(val_acc)
-                    writer.add_scalar("Mean_Val_Dice", mean, epoch)
-                    if semantic_classes is not None:
-                        for val_channel_ind in range(len(semantic_classes)):
-                            if val_channel_ind < val_acc.size:
-                                writer.add_scalar(semantic_classes[val_channel_ind], val_acc[val_channel_ind], epoch)
-                val_avg_acc = np.mean(val_acc)
-                if val_avg_acc > val_acc_max:
-                    print("new best ({:.6f} --> {:.6f}). ".format(val_acc_max, val_avg_acc))
-                    val_acc_max = val_avg_acc
-                    b_new_best = True
-                    if args.rank == 0 and args.logdir is not None and args.save_checkpoint:
-                        save_checkpoint(
-                            model, epoch, args, best_acc=val_acc_max, optimizer=optimizer, scheduler=scheduler
-                        )
+                    # mean = np.mean(val_acc)
+                    # writer.add_scalar("Mean_Val_Dice", mean, epoch)
+                    # TT.update_epoch({"Mean_Val_Dice": {"step": [epoch], "value":[float(mean)]}})
+                    TT.update_epoch({"valid_loss": {"step": [epoch], "value":[float(val_loss)]}})
+                #     if semantic_classes is not None:
+                #         for val_channel_ind in range(len(semantic_classes)):
+                #             if val_channel_ind < val_acc.size:
+                #                 writer.add_scalar(semantic_classes[val_channel_ind], val_acc[val_channel_ind], epoch)
+                #                 TT.update_epoch({semantic_classes[val_channel_ind]: {"step": [epoch], "value":[float(val_acc[val_channel_ind])]}})
+                # val_avg_acc = np.mean(val_acc)
+                # if val_avg_acc > val_acc_max:
+                #     print("new best ({:.6f} --> {:.6f}). ".format(val_acc_max, val_avg_acc))
+                #     val_acc_max = val_avg_acc
+                #     b_new_best = True
+                #     if args.rank == 0 and args.logdir is not None and args.save_checkpoint:
+                #         save_checkpoint(
+                #             model, epoch, args, best_acc=val_acc_max, optimizer=optimizer, scheduler=scheduler
+                #         )
             if args.rank == 0 and args.logdir is not None and args.save_checkpoint:
                 save_checkpoint(model, epoch, args, best_acc=val_acc_max, filename="model_final.pt")
                 if b_new_best:
                     print("Copying to model.pt new best model!!!!")
                     shutil.copyfile(os.path.join(args.logdir, "model_final.pt"), os.path.join(args.logdir, "model.pt"))
+
+        # At the end of an epoch, save the metrics
+        print("===============================================================================")
+        print(TT.epoch_data)
+        print("===============================================================================")
+        TT.to_json()
+        TT.update_epoch({"learning_rate":{"step":[epoch],"value":[scheduler.get_last_lr()[0]]}})
+        TT.make_key_fig(["train_loss", "valid_loss"], kwargs={"train_loss": {"color": "blue", "label": "Training"}, "valid_loss": {"color": "orange", "label": "Validation"}}, title="Dice Loss ")
+        #TT.make_key_fig(["Mean_Val_Dice"], title="Mean Val Dice Acc")
+        TT.make_key_fig(["learning_rate"], title="Learning rate")
 
         if scheduler is not None:
             scheduler.step()

@@ -111,7 +111,7 @@ def show_image_v2(images=None, titles=None, maintitle=None, z=75, minimal=True):
 
         #print("Index+1 is "+str(index+1), " , r_ind: "+str(row_index), " , c_ind: "+str(col_index))
 
-        if images[row_index][col_index] == "none": # Hide empty figs
+        if type(images[row_index][col_index]) == str: #"none": # Hide empty figs
             axs.axis("off")
         else:
             axs.imshow(images[row_index][col_index][:, :, z], cmap="gray")
@@ -217,5 +217,109 @@ def observation_summary(observations, title=""):
     print("")
 
     print("\nNumber of observations with 2, or 3 out of (T1, T1GD and T2) for each diagnose:\n")
-    print(observations.groupby("label")[["T1_and_T1GD", "T1GD_and_T2", "T1_and_T2", "all_three"]].sum().reset_index())
+    print(observations.groupby("class_label")[["T1_and_T1GD", "T1GD_and_T2", "T1_and_T2", "all_three"]].sum().reset_index())
     print("\n")
+
+#%%
+
+def get_conf_matrix(all_preds, all_targets, n_classes=3) -> list:
+    '''
+    Takes two integer lists of all target classes, and all predictions by some classifier.
+
+    Returns a confusion matrix, with true class on rows, and predicted class on the columns,
+    as per https://scikit-learn.org/stable/modules/generated/sklearn.metrics.confusion_matrix.html
+    '''
+    matrix = [[0 for i in range(n_classes)] for i in range(n_classes)]
+
+    print(f"There are {len(all_preds)} predictions in all_preds.")
+
+    for i in range(n_classes):
+        for j in range(n_classes):
+            for tar, pre in zip(all_targets, all_preds):
+                if tar == i and pre == j:
+                    matrix[i][j] += 1
+    
+    return(matrix)
+
+
+
+# %%
+import re
+
+def create_conf_matrix_fig(conf_matrix, save_fig_as=None, epoch=None, title="", n_classes=3, subtitle=None):
+    '''
+    Takes confusion matrices (on training and validation data),
+    and creates a figure with them. Saves as a png.
+
+    The true classes are on the rows, and the predicted values on the columns.
+    '''
+    fig, axs = plt.subplots(ncols=1)
+    #fig.tight_layout(rect=(0,0,1,0.999))
+
+    # axs[0].matshow(train_mat)
+    # for (i, j), z in np.ndenumerate(train_mat):
+    #     axs[0].text(j, i, '{}'.format(z), ha='center', va='center')
+    # axs[0].set_yticks(ticks=[0,1,2], labels=["Gli", "Epe", "Med"])
+    # axs[0].set_xticks(ticks=[0,1,2], labels=["Gli", "Epe", "Med"])
+    # axs[0].set_xlabel("True value")
+    # axs[0].set_ylabel("Prediction")
+    # axs[0].set_title("Training data")
+
+    if n_classes == 3:
+        labels = ["Gli", "Epe", "Med"]
+    elif n_classes == 2:
+        labels = ["Supra", "Infra"]
+    else:
+        raise ValueError("Unsupported number of classes")
+
+    axs.matshow(conf_matrix, alpha=0.3, cmap="Blues")
+    for (i, j), z in np.ndenumerate(conf_matrix):
+        axs.text(j, i, '{}'.format(z), ha='center', va='center', size="xx-large")
+    axs.set_yticks(ticks=[i for i in range(n_classes)], labels=labels, fontsize=12)
+    axs.set_xticks(ticks=[i for i in range(n_classes)], labels=labels, fontsize=12)
+    axs.set_ylabel("True value", fontsize=16)
+    axs.set_xlabel("Prediction", fontsize=16)
+    #axs.set_title("Validation data")
+
+    if subtitle != None: plt.title(subtitle)
+
+    if save_fig_as != None:
+        #start_date = re.search(r"\d{4}-\d{2}-\d{2}-\d{2}:\d{2}:\d{2}", save_fig_as).group(0)
+        #fig.suptitle(title+" (Epoch "+str(epoch)+")", fontsize=16)
+        fig.suptitle(title, fontsize=20)
+        fig.tight_layout()
+        fig.savefig(save_fig_as)
+    else:
+        if title == "": title = "Confusion matrix"
+        fig.suptitle(title, fontsize=16)
+        fig.tight_layout()
+        fig.show()
+
+
+#create_conf_matrix_fig([[3,4, 9], [1,2, 0], [1,2, 0]])
+
+def create_lr_schedule_fig(scheduler, optimizer, max_epochs, save_as):
+    '''
+    Takes a learning rate scheduler, an optimizer, a maximum number of epochs, and a path.
+
+    Saves a figure that illustrates the learning rate across all epochs.
+    '''
+    # Make a copy of the scheduler to not change the one that will be used for training
+    lr_values = []
+
+    for epoch in range(max_epochs):
+        scheduler.step()
+
+        current_lr = optimizer.param_groups[0]["lr"]
+        lr_values.append(current_lr)
+
+    # Plot the learning rate over epochs
+    plt.plot(range(max_epochs), lr_values, label='Learning Rate')
+    plt.xlabel('Epoch')
+    plt.title('Learning Rate Schedule')
+    plt.legend()
+    plt.savefig(save_as)
+
+
+# %%
+
