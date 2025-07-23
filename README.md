@@ -1,16 +1,9 @@
-# Multimodal AI for brain tumor classification in MR images 
+# Multi-sequence 3D MRI fusion for paediatric brain tumour classification using deep learning
 
-Code for my master thesis project on brain tumor classification using MR images.
-One can consider adding a graphical description of the project as well.
+Code for my master thesis project on brain tumor classification using 3D MR images.
 <!--<img src="README_graphical_abstract.png" width="300px" align="right" />-->
 
 <!--[Link to publication](https://doi.org/10.3384/9789180757805) | [Link to citation bib](#reference)-->
-
-
-**(optional) Key highlights:**
-- **Point 1**: This is repository will make you want to cite this work.
-- **Point 2**:
-- **Point 3**:
 
 **Abstract**
 
@@ -68,4 +61,8 @@ Consider which license should this work be covered by. Here is an example:
 This work is licensed under [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International](https://creativecommons.org/licenses/by-nc-sa/4.0/).
 
 ## Acknowledgments
-List of relevant acknowledgements and/or references.
+I would like to thank my supervisors, Anders Eklund and Neda Haj-Hosseini, for their
+invaluable guidance throughout this project. I am also grateful to Iulian Emil Tampu and
+Christoforos Spyretos for their many helpful contributions. Thank you also to Krzysztof
+Bartoszek, for acting as examiner, and my opponent Duc Tran who suggested many useful
+revisions.
