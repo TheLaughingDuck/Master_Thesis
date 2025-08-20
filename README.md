@@ -1,14 +1,14 @@
 # Multi-sequence 3D MRI fusion for paediatric brain tumour classification using deep learning
 
-Code for my master thesis project on brain tumor classification using 3D MR images.
+My Master's Thesis, ([available here](https://liu.diva-portal.org/smash/record.jsf?pid=diva2%3A1983250&dswid=6331)) on brain tumour classification using 3D MR images.
 <!--<img src="README_graphical_abstract.png" width="300px" align="right" />-->
 
 <!--[Link to publication](https://doi.org/10.3384/9789180757805) | [Link to citation bib](#reference)-->
 
 **Key highlights:**
-- **Point 1**: Three-dimensional MR Images of paediatric brains with either Glioma, Medulloblastoma or Ependymoma tumours were analysed.
-- **Point 2**: The BrainSegFounder Transformer model was utilized for feature extraction, and a custom neural network performed classification.
-- **Point 3**: The ResNet (2+1)D and Resnet Mixed Convolution models were utilized for classifications.
+- **Three-dimensional**  MR Images of paediatric brains with either Glioma, Medulloblastoma or Ependymoma tumours were analysed.
+- **The Transformer-based** BrainSegFounder model was utilized for feature extraction, and a custom neural network performed classification.
+- **Two CNN architectures,** the ResNet (2+1)D and Resnet Mixed Convolution models were utilized for classifications.
 
 **Abstract**
 
