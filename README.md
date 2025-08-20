@@ -55,10 +55,18 @@ Description of how the code is structured. One can consider the following struct
 Description of how the code should be used.
 
 ## Reference
-If you use this work, please cite:
+If you use this work, please cite with the following text, or with the bibtex code below.
+
+Jorstedt, S. (2025). Multi-sequence 3D MRI fusion for paediatric brain tumour classification using deep learning (Dissertation). Retrieved from https://urn.kb.se/resolve?urn=urn:nbn:se:liu:diva-216056
 
 ```bibtex
-add bibtex reference here
+@masterthesis{jorstedt2025multi,
+  title={Multi-sequence 3D MRI fusion for paediatric brain tumour classification using deep learning},
+  author={Jorstedt, Simon},
+  school={Linköping University, Sweden},
+  howpublished={\url{https://urn.kb.se/resolve?urn=urn:nbn:se:liu:diva-216056}},
+  year={2025}
+}
 ```
 
 ## License
